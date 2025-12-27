@@ -21,6 +21,7 @@ import "C"
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"flag"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	"unsafe"
 
 	"pw-convoverb/dsp"
+	"pw-convoverb/web"
 )
 
 //go:embed assets/ir-library.irlib
@@ -101,6 +103,10 @@ func main() {
 	wetLevel := flag.Float64("wet", 0.3, "Wet (reverb) level (0.0-1.0)")
 	dryLevel := flag.Float64("dry", 0.7, "Dry (direct) level (0.0-1.0)")
 	noTUI := flag.Bool("no-tui", false, "Disable interactive TUI")
+	latency := flag.Int("latency", 256, "Processing latency in samples (64, 128, 256, or 512)")
+	webPort := flag.Int("port", 8080, "Web server port")
+	noBrowser := flag.Bool("no-browser", false, "Don't auto-open browser")
+	noWeb := flag.Bool("no-web", false, "Disable web server")
 	debug := flag.Bool("debug", false, "Enable verbose PipeWire debug logging")
 	logFile := flag.String("log", "pw-convoverb.log", "Log file path")
 	showHelp := flag.Bool("help", false, "Show this help message")
@@ -196,6 +202,34 @@ func main() {
 	reverb = dsp.NewConvolutionReverb(float64(sampleRate), channels)
 	slog.Info("Reverb initialized", "defaultSampleRate", sampleRate, "channels", channels)
 
+	// Configure latency before loading IR
+	// Convert samples to block order: 64=6, 128=7, 256=8, 512=9
+	blockOrder := 8 // Default to 256 samples
+	switch *latency {
+	case 64:
+		blockOrder = 6
+	case 128:
+		blockOrder = 7
+	case 256:
+		blockOrder = 8
+	case 512:
+		blockOrder = 9
+	default:
+		// Find closest valid latency
+		if *latency <= 96 {
+			blockOrder = 6
+		} else if *latency <= 192 {
+			blockOrder = 7
+		} else if *latency <= 384 {
+			blockOrder = 8
+		} else {
+			blockOrder = 9
+		}
+		slog.Warn("Invalid latency value, using closest valid", "requested", *latency, "actual", 1<<blockOrder)
+	}
+	reverb.SetLatency(blockOrder)
+	slog.Info("Latency configured", "samples", 1<<blockOrder)
+
 	// Load impulse response
 	if *irLibrary != "" {
 		// Load from external IR library file
@@ -263,6 +297,61 @@ func main() {
 	}
 	slog.Info("PipeWire filter created")
 
+	// Prepare IR list for TUI (always from embedded library for now)
+	irList, _ := dsp.ListLibraryIRsFromReader(bytes.NewReader(embeddedIRLibrary))
+
+	// Get initial IR name
+	initialIRName := ""
+	if *irIndex >= 0 && *irIndex < len(irList) {
+		initialIRName = irList[*irIndex].Name
+	}
+
+	// Start web server if not disabled
+	var webServer *web.Server
+	if !*noWeb {
+		// Convert IR list to web.IREntry format
+		webIRList := make([]web.IREntry, len(irList))
+		for i, entry := range irList {
+			webIRList[i] = web.IREntry{
+				Index:      i,
+				Name:       entry.Name,
+				Category:   entry.Category,
+				SampleRate: entry.SampleRate,
+				Channels:   entry.Channels,
+				Samples:    entry.Length,
+				Duration:   entry.Duration(),
+			}
+		}
+
+		webServer = web.NewServer(reverb, embeddedIRLibrary, nil, *webPort, *irIndex, initialIRName)
+		webServer.SetIRList(webIRList)
+
+		// Register as state listener
+		reverb.AddStateListener(webServer)
+
+		// Start web server in background
+		go func() {
+			slog.Info("Starting web server", "port", *webPort)
+			if err := webServer.Start(); err != nil {
+				slog.Error("Web server error", "error", err)
+			}
+		}()
+
+		// Auto-open browser
+		if !*noBrowser {
+			time.Sleep(200 * time.Millisecond) // Give server time to start
+			go func() {
+				url := fmt.Sprintf("http://localhost:%d", *webPort)
+				if err := web.OpenBrowser(url); err != nil {
+					slog.Error("Failed to open browser", "error", err)
+				}
+			}()
+		}
+
+		//nolint:forbidigo // startup message
+		fmt.Printf("Web UI available at http://localhost:%d\n", *webPort)
+	}
+
 	if *noTUI {
 		//nolint:forbidigo // headless mode startup message
 		fmt.Println("Starting PipeWire Convolution Reverb (pw-convoverb)...")
@@ -290,8 +379,8 @@ func main() {
 		// Give PipeWire a moment to start (optional)
 		time.Sleep(100 * time.Millisecond)
 
-		// Run TUI in main thread
-		runTUI(reverb)
+		// Run TUI in main thread with IR library data
+		runTUI(reverb, embeddedIRLibrary, irList, *irIndex)
 
 		// When TUI returns, quit PipeWire loop
 		slog.Info("TUI exited, stopping PipeWire loop")
@@ -299,6 +388,15 @@ func main() {
 
 		// Wait for PipeWire loop to finish cleaning up its internal state
 		waitGroup.Wait()
+	}
+
+	// Shutdown web server gracefully
+	if webServer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := webServer.Shutdown(ctx); err != nil {
+			slog.Error("Web server shutdown error", "error", err)
+		}
 	}
 
 	// Cleanup

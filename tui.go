@@ -10,27 +10,37 @@ import (
 )
 
 const (
-	colDef    = termbox.ColorDefault
-	colWhite  = termbox.ColorWhite
-	colRed    = termbox.ColorRed
-	colGreen  = termbox.ColorGreen
-	colYellow = termbox.ColorYellow
-	colBlue   = termbox.ColorBlue
-	colCyan   = termbox.ColorCyan
+	colDef     = termbox.ColorDefault
+	colWhite   = termbox.ColorWhite
+	colRed     = termbox.ColorRed
+	colGreen   = termbox.ColorGreen
+	colYellow  = termbox.ColorYellow
+	colBlue    = termbox.ColorBlue
+	colCyan    = termbox.ColorCyan
+	colMagenta = termbox.ColorMagenta
 )
 
 type TUIState struct {
 	selectedParam int
 	reverb        *dsp.ConvolutionReverb
 	exit          bool
+
+	// IR library data
+	irLibraryData []byte             // Embedded IR library bytes
+	irList        []dsp.IRIndexEntry // List of available IRs
+	currentIRIdx  int                // Currently loaded IR index
+	currentIRName string             // Currently loaded IR name
+	irBrowseMode  bool               // True when browsing IR list
+	irBrowseIdx   int                // Index in IR browser
 }
 
 var paramNames = []string{
+	"Impulse Response",
 	"Wet Level (0-1)",
 	"Dry Level (0-1)",
 }
 
-func runTUI(reverb *dsp.ConvolutionReverb) {
+func runTUI(reverb *dsp.ConvolutionReverb, irLibraryData []byte, irList []dsp.IRIndexEntry, initialIRIdx int) {
 	err := termbox.Init()
 	if err != nil {
 		//nolint:forbidigo // TUI initialization error requires direct output
@@ -41,8 +51,18 @@ func runTUI(reverb *dsp.ConvolutionReverb) {
 
 	termbox.SetInputMode(termbox.InputEsc)
 
+	initialName := ""
+	if initialIRIdx >= 0 && initialIRIdx < len(irList) {
+		initialName = irList[initialIRIdx].Name
+	}
+
 	state := &TUIState{
-		reverb: reverb,
+		reverb:        reverb,
+		irLibraryData: irLibraryData,
+		irList:        irList,
+		currentIRIdx:  initialIRIdx,
+		currentIRName: initialName,
+		irBrowseIdx:   initialIRIdx,
 	}
 
 	eventQueue := make(chan termbox.Event)
@@ -74,6 +94,12 @@ func runTUI(reverb *dsp.ConvolutionReverb) {
 }
 
 func handleKey(ev termbox.Event, s *TUIState) {
+	// Handle IR browse mode separately
+	if s.irBrowseMode {
+		handleIRBrowseKey(ev, s)
+		return
+	}
+
 	if ev.Key == termbox.KeyEsc || ev.Ch == 'q' {
 		s.exit = true
 		return
@@ -95,7 +121,12 @@ func handleKey(ev termbox.Event, s *TUIState) {
 
 	// Adjustment
 	switch s.selectedParam {
-	case 0: // Wet Level
+	case 0: // Impulse Response - Enter browse mode on left/right or Enter
+		if ev.Key == termbox.KeyArrowRight || ev.Key == termbox.KeyArrowLeft || ev.Key == termbox.KeyEnter {
+			s.irBrowseMode = true
+			s.irBrowseIdx = s.currentIRIdx
+		}
+	case 1: // Wet Level
 		change := 0.0
 		if ev.Key == termbox.KeyArrowRight {
 			change = 0.05
@@ -108,7 +139,7 @@ func handleKey(ev termbox.Event, s *TUIState) {
 		if change != 0 {
 			s.reverb.SetWetLevel(s.reverb.GetWetLevel() + change)
 		}
-	case 1: // Dry Level
+	case 2: // Dry Level
 		change := 0.0
 		if ev.Key == termbox.KeyArrowRight {
 			change = 0.05
@@ -124,8 +155,53 @@ func handleKey(ev termbox.Event, s *TUIState) {
 	}
 }
 
+func handleIRBrowseKey(ev termbox.Event, s *TUIState) {
+	switch ev.Key {
+	case termbox.KeyEsc:
+		// Cancel browsing, revert to current IR
+		s.irBrowseMode = false
+		s.irBrowseIdx = s.currentIRIdx
+	case termbox.KeyEnter:
+		// Load the selected IR
+		if s.irBrowseIdx != s.currentIRIdx && len(s.irLibraryData) > 0 {
+			name, err := s.reverb.SwitchIR(s.irLibraryData, s.irBrowseIdx)
+			if err == nil {
+				s.currentIRIdx = s.irBrowseIdx
+				s.currentIRName = name
+			}
+		}
+		s.irBrowseMode = false
+	case termbox.KeyArrowUp:
+		s.irBrowseIdx--
+		if s.irBrowseIdx < 0 {
+			s.irBrowseIdx = len(s.irList) - 1
+		}
+	case termbox.KeyArrowDown:
+		s.irBrowseIdx++
+		if s.irBrowseIdx >= len(s.irList) {
+			s.irBrowseIdx = 0
+		}
+	case termbox.KeyPgup:
+		s.irBrowseIdx -= 10
+		if s.irBrowseIdx < 0 {
+			s.irBrowseIdx = 0
+		}
+	case termbox.KeyPgdn:
+		s.irBrowseIdx += 10
+		if s.irBrowseIdx >= len(s.irList) {
+			s.irBrowseIdx = len(s.irList) - 1
+		}
+	}
+}
+
 func draw(state *TUIState) {
 	_ = termbox.Clear(colDef, colDef)
+
+	// Check if we're in IR browse mode
+	if state.irBrowseMode {
+		drawIRBrowser(state)
+		return
+	}
 
 	// Header
 	printTB(0, 0, colCyan, colDef, "PipeWire Convolution Reverb (pw-convoverb) - Interactive Mode")
@@ -134,7 +210,16 @@ func draw(state *TUIState) {
 	printTB(0, 3, colDef, colDef, "----------------------------------------------------")
 
 	// Parameters
+	irDisplayName := state.currentIRName
+	if irDisplayName == "" {
+		irDisplayName = "(none)"
+	}
+	if len(irDisplayName) > 30 {
+		irDisplayName = irDisplayName[:27] + "..."
+	}
+
 	vals := []string{
+		irDisplayName,
 		fmt.Sprintf("%.2f", state.reverb.GetWetLevel()),
 		fmt.Sprintf("%.2f", state.reverb.GetDryLevel()),
 	}
@@ -150,11 +235,17 @@ func draw(state *TUIState) {
 			prefix = "> "
 		}
 
-		printTB(0, 5+i, col, bgColor, fmt.Sprintf("% -20s %s", prefix+name, vals[i]))
+		line := fmt.Sprintf("%-22s %s", prefix+name, vals[i])
+		printTB(0, 5+i, col, bgColor, line)
+
+		// Add hint for IR parameter
+		if i == 0 && i == state.selectedParam {
+			printTB(len(line)+2, 5+i, colYellow, colDef, "[Enter to browse]")
+		}
 	}
 
 	// Metering
-	meterY := 10
+	meterY := 11
 	printTB(0, meterY, colYellow, colDef, "Meters:")
 
 	// Convert linear to dB for display
@@ -184,6 +275,84 @@ func draw(state *TUIState) {
 
 	drawMeter(meterY+8, "Out L", outLdB, colBlue)
 	drawMeter(meterY+9, "Out R", outRdB, colBlue)
+
+	termbox.Flush()
+}
+
+func drawIRBrowser(state *TUIState) {
+	w, h := termbox.Size()
+
+	// Header
+	printTB(0, 0, colMagenta, colDef, "Select Impulse Response")
+	printTB(0, 1, colDef, colDef, "Use Up/Down to browse, PgUp/PgDn for fast scroll")
+	printTB(0, 2, colDef, colDef, "Enter to select, Esc to cancel")
+	printTB(0, 3, colDef, colDef, "─────────────────────────────────────────────────────────────────")
+
+	// Calculate visible range
+	listStartY := 5
+	listHeight := h - listStartY - 2
+	if listHeight < 5 {
+		listHeight = 5
+	}
+
+	// Scroll to keep selected item visible
+	scrollOffset := 0
+	if state.irBrowseIdx >= listHeight {
+		scrollOffset = state.irBrowseIdx - listHeight + 1
+	}
+
+	// Draw IR list
+	for i := 0; i < listHeight && scrollOffset+i < len(state.irList); i++ {
+		idx := scrollOffset + i
+		entry := state.irList[idx]
+
+		col := colWhite
+		bgColor := colDef
+		prefix := "  "
+
+		if idx == state.irBrowseIdx {
+			col = colDef
+			bgColor = colWhite
+			prefix = "> "
+		}
+
+		// Mark current IR
+		suffix := ""
+		if idx == state.currentIRIdx {
+			suffix = " [current]"
+		}
+
+		// Format: "  3: Large Hall (Hall, 48kHz, stereo, 2.5s)"
+		channelStr := "mono"
+		if entry.Channels == 2 {
+			channelStr = "stereo"
+		} else if entry.Channels > 2 {
+			channelStr = fmt.Sprintf("%dch", entry.Channels)
+		}
+
+		name := entry.Name
+		maxNameLen := 25
+		if len(name) > maxNameLen {
+			name = name[:maxNameLen-3] + "..."
+		}
+
+		line := fmt.Sprintf("%s%3d: %-25s (%s, %.0fkHz, %s, %.1fs)%s",
+			prefix, idx, name, entry.Category, entry.SampleRate/1000, channelStr, entry.Duration(), suffix)
+
+		// Truncate to screen width
+		if len(line) > w-1 {
+			line = line[:w-1]
+		}
+
+		printTB(0, listStartY+i, col, bgColor, line)
+	}
+
+	// Footer with scroll indicator
+	if len(state.irList) > listHeight {
+		scrollInfo := fmt.Sprintf("Showing %d-%d of %d",
+			scrollOffset+1, min(scrollOffset+listHeight, len(state.irList)), len(state.irList))
+		printTB(0, h-1, colYellow, colDef, scrollInfo)
+	}
 
 	termbox.Flush()
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,10 +12,19 @@ import (
 
 	algofft "github.com/MeKo-Christian/algo-fft"
 	"pw-convoverb/pkg/irformat"
+	"pw-convoverb/pkg/resampler"
 )
 
 // IRIndexEntry is an alias for irformat.IndexEntry for external use.
 type IRIndexEntry = irformat.IndexEntry
+
+// StateListener is notified when reverb state changes.
+// Used by web UI to sync state changes made from TUI.
+type StateListener interface {
+	OnWetLevelChange(level float64)
+	OnDryLevelChange(level float64)
+	OnIRChange(index int, name string)
+}
 
 // ConvolutionEngine defines the interface for convolution engines.
 // Both OverlapAddEngine and LowLatencyConvolutionEngine implement this interface.
@@ -73,8 +83,15 @@ type ConvolutionReverb struct {
 	sampleRate float64
 	channels   int
 
-	// Impulse response
+	// Impulse response (resampled to current sample rate)
 	ir [][]float32 // IR per channel
+
+	// Original IR (stored at original sample rate for resampling on rate change)
+	originalIR         [][]float32
+	originalIRRate     float64
+	currentIRName      string
+	resamplerInstance  *resampler.Resampler
+	resamplingInFlight bool // True when async resampling is in progress
 
 	// Mix levels
 	wetLevel float64
@@ -90,20 +107,24 @@ type ConvolutionReverb struct {
 
 	// Processing state
 	enabled bool
+
+	// State listeners (for web UI synchronization)
+	listeners []StateListener
 }
 
 // NewConvolutionReverb creates a new convolution reverb processor.
 // Uses EngineTypeLowLatency by default with 64-sample latency.
 func NewConvolutionReverb(sampleRate float64, channels int) *ConvolutionReverb {
 	r := &ConvolutionReverb{
-		sampleRate:    sampleRate,
-		channels:      channels,
-		wetLevel:      0.3,
-		dryLevel:      0.7,
-		engineType:    EngineTypeLowLatency,
-		minBlockOrder: 6,     // 64-sample latency
-		maxBlockOrder: 9,     // 512-sample max partition
-		enabled:       false, // Disabled until IR is loaded
+		sampleRate:        sampleRate,
+		channels:          channels,
+		wetLevel:          0.3,
+		dryLevel:          0.7,
+		engineType:        EngineTypeLowLatency,
+		minBlockOrder:     6,     // 64-sample latency
+		maxBlockOrder:     9,     // 512-sample max partition
+		enabled:           false, // Disabled until IR is loaded
+		resamplerInstance: resampler.New(),
 	}
 
 	// Initialize per-channel engines slice
@@ -348,21 +369,43 @@ func (r *ConvolutionReverb) LoadImpulseResponseFromLibrary(libraryPath, irName s
 }
 
 // applyImpulseResponse applies loaded IR data to the reverb engines.
+// This method is called with the lock NOT held.
 func (r *ConvolutionReverb) applyImpulseResponse(irData [][]float32, irSampleRate float64) error {
+	return r.applyImpulseResponseUnlocked(irData, irSampleRate)
+}
+
+// applyImpulseResponseUnlocked applies loaded IR data to the reverb engines.
+// Caller must hold r.mu lock.
+func (r *ConvolutionReverb) applyImpulseResponseUnlocked(irData [][]float32, irSampleRate float64) error {
 	if len(irData) == 0 {
 		return fmt.Errorf("IR data is empty")
+	}
+
+	// Store original IR for future resampling on sample rate changes
+	r.originalIR = irData
+	r.originalIRRate = irSampleRate
+
+	// Resample IR if sample rates differ
+	irToUse := irData
+	if irSampleRate != r.sampleRate && r.resamplerInstance != nil {
+		log.Printf("Resampling IR from %.0f Hz to %.0f Hz", irSampleRate, r.sampleRate)
+		resampled, err := r.resamplerInstance.ResampleMultiChannel(irData, irSampleRate, r.sampleRate)
+		if err != nil {
+			return fmt.Errorf("failed to resample IR: %w", err)
+		}
+		irToUse = resampled
 	}
 
 	// Handle channel count mismatch
 	r.ir = make([][]float32, r.channels)
 
 	for ch := range r.channels {
-		if ch < len(irData) {
+		if ch < len(irToUse) {
 			// Use the corresponding channel from the IR
-			r.ir[ch] = irData[ch]
+			r.ir[ch] = irToUse[ch]
 		} else {
 			// If IR has fewer channels, duplicate the first channel
-			r.ir[ch] = irData[0]
+			r.ir[ch] = irToUse[0]
 		}
 
 		// Create engine based on configured type
@@ -372,10 +415,6 @@ func (r *ConvolutionReverb) applyImpulseResponse(irData [][]float32, irSampleRat
 			return fmt.Errorf("failed to create engine for channel %d: %w", ch, err)
 		}
 	}
-
-	// Note: If sample rates differ, ideally we should resample.
-	// For now, we just store the IR sample rate for reference.
-	_ = irSampleRate
 
 	r.enabled = true
 	return nil
@@ -473,6 +512,44 @@ func (r *ConvolutionReverb) LoadImpulseResponseFromBytes(data []byte, irName str
 	return r.LoadImpulseResponseFromReader(bytes.NewReader(data), irName, irIndex)
 }
 
+// SwitchIR switches to a different IR from the embedded library data.
+// This is designed for runtime IR switching from the TUI.
+// Returns the name of the loaded IR on success.
+func (r *ConvolutionReverb) SwitchIR(data []byte, irIndex int) (string, error) {
+	reader := bytes.NewReader(data)
+	irReader, err := irformat.NewReader(reader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read IR library: %w", err)
+	}
+
+	entries := irReader.ListIRs()
+	if irIndex < 0 || irIndex >= len(entries) {
+		return "", fmt.Errorf("IR index %d out of range (0-%d)", irIndex, len(entries)-1)
+	}
+
+	ir, err := irReader.LoadIR(irIndex)
+	if err != nil {
+		return "", fmt.Errorf("failed to load IR at index %d: %w", irIndex, err)
+	}
+
+	r.mu.Lock()
+	if err := r.applyImpulseResponseUnlocked(ir.Audio.Data, ir.Metadata.SampleRate); err != nil {
+		r.mu.Unlock()
+		return "", err
+	}
+	listeners := r.listeners
+	r.mu.Unlock()
+
+	name := entries[irIndex].Name
+
+	// Notify outside lock
+	for _, l := range listeners {
+		go l.OnIRChange(irIndex, name)
+	}
+
+	return name, nil
+}
+
 // createEngine creates a convolution engine based on the configured type.
 func (r *ConvolutionReverb) createEngine(ir []float32) (ConvolutionEngine, error) {
 	switch r.engineType {
@@ -487,24 +564,112 @@ func (r *ConvolutionReverb) createEngine(ir []float32) (ConvolutionEngine, error
 	}
 }
 
-// SetSampleRate updates the sample rate and recalculates coefficients.
+// SetSampleRate updates the sample rate and triggers async resampling if needed.
 func (r *ConvolutionReverb) SetSampleRate(sampleRate float64) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	if sampleRate == r.sampleRate {
+		r.mu.Unlock()
 		return
 	}
 
+	oldRate := r.sampleRate
 	r.sampleRate = sampleRate
-	// Note: If IR is loaded, it should ideally be resampled
-	// For now, we just update the rate
+
+	// If no original IR is loaded, nothing more to do
+	if r.originalIR == nil || r.resamplingInFlight {
+		r.mu.Unlock()
+		return
+	}
+
+	// Mark that resampling is in progress
+	r.resamplingInFlight = true
+
+	// Capture what we need for resampling
+	originalIR := r.originalIR
+	originalIRRate := r.originalIRRate
+	resamplerInst := r.resamplerInstance
+
+	r.mu.Unlock()
+
+	// Perform resampling in background goroutine
+	go func() {
+		log.Printf("Async resampling IR from %.0f Hz to %.0f Hz (rate changed from %.0f Hz)",
+			originalIRRate, sampleRate, oldRate)
+
+		resampled, err := resamplerInst.ResampleMultiChannel(originalIR, originalIRRate, sampleRate)
+		if err != nil {
+			log.Printf("Failed to resample IR: %v", err)
+			r.mu.Lock()
+			r.resamplingInFlight = false
+			r.mu.Unlock()
+			return
+		}
+
+		r.mu.Lock()
+		defer r.mu.Unlock()
+
+		// Check if sample rate changed again while we were resampling
+		if r.sampleRate != sampleRate {
+			// Rate changed again, don't apply this result
+			r.resamplingInFlight = false
+			return
+		}
+
+		// Apply the resampled IR
+		r.ir = make([][]float32, r.channels)
+		for ch := range r.channels {
+			if ch < len(resampled) {
+				r.ir[ch] = resampled[ch]
+			} else {
+				r.ir[ch] = resampled[0]
+			}
+
+			// Recreate engine with resampled IR
+			engine, err := r.createEngine(r.ir[ch])
+			if err != nil {
+				log.Printf("Failed to create engine for channel %d after resampling: %v", ch, err)
+				continue
+			}
+			r.engines[ch] = engine
+		}
+
+		r.resamplingInFlight = false
+		log.Printf("IR resampling complete, now at %.0f Hz", sampleRate)
+	}()
+}
+
+// AddStateListener adds a listener for state changes.
+func (r *ConvolutionReverb) AddStateListener(l StateListener) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.listeners = append(r.listeners, l)
+}
+
+// notifyWetLevelChange notifies listeners of a wet level change.
+func (r *ConvolutionReverb) notifyWetLevelChange(level float64) {
+	for _, l := range r.listeners {
+		go l.OnWetLevelChange(level)
+	}
+}
+
+// notifyDryLevelChange notifies listeners of a dry level change.
+func (r *ConvolutionReverb) notifyDryLevelChange(level float64) {
+	for _, l := range r.listeners {
+		go l.OnDryLevelChange(level)
+	}
+}
+
+// notifyIRChange notifies listeners of an IR change.
+func (r *ConvolutionReverb) notifyIRChange(index int, name string) {
+	for _, l := range r.listeners {
+		go l.OnIRChange(index, name)
+	}
 }
 
 // SetWetLevel sets the wet (reverb) mix level (0.0-1.0).
 func (r *ConvolutionReverb) SetWetLevel(level float64) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if level < 0.0 {
 		level = 0.0
 	}
@@ -512,12 +677,18 @@ func (r *ConvolutionReverb) SetWetLevel(level float64) {
 		level = 1.0
 	}
 	r.wetLevel = level
+	listeners := r.listeners
+	r.mu.Unlock()
+
+	// Notify outside lock
+	for _, l := range listeners {
+		go l.OnWetLevelChange(level)
+	}
 }
 
 // SetDryLevel sets the dry (direct) mix level (0.0-1.0).
 func (r *ConvolutionReverb) SetDryLevel(level float64) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	if level < 0.0 {
 		level = 0.0
 	}
@@ -525,6 +696,13 @@ func (r *ConvolutionReverb) SetDryLevel(level float64) {
 		level = 1.0
 	}
 	r.dryLevel = level
+	listeners := r.listeners
+	r.mu.Unlock()
+
+	// Notify outside lock
+	for _, l := range listeners {
+		go l.OnDryLevelChange(level)
+	}
 }
 
 // GetWetLevel returns the current wet level.

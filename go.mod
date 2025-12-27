@@ -6,6 +6,7 @@ require github.com/nsf/termbox-go v1.1.1
 
 require (
 	github.com/MeKo-Christian/algo-fft v0.1.1 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 )
