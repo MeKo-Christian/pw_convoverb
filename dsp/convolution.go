@@ -1,17 +1,40 @@
 package dsp
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 
-	"github.com/MeKo-Christian/algo-fft"
+	algofft "github.com/MeKo-Christian/algo-fft"
+	"pw-convoverb/pkg/irformat"
 )
+
+// IRIndexEntry is an alias for irformat.IndexEntry for external use.
+type IRIndexEntry = irformat.IndexEntry
+
+// ConvolutionEngine defines the interface for convolution engines.
+// Both OverlapAddEngine and LowLatencyConvolutionEngine implement this interface.
+type ConvolutionEngine interface {
+	// ProcessBlockInplace processes input samples and writes results to output.
+	// Input and output must have the same length.
+	ProcessBlockInplace(input, output []float32) error
+
+	// Latency returns the processing latency in samples.
+	Latency() int
+
+	// Reset clears all internal buffers.
+	Reset()
+}
 
 // OverlapAddEngine handles FFT-based fast convolution using overlap-add.
 type OverlapAddEngine struct {
 	// FFT configuration
-	fftSize   int         // FFT size (should be 2 * blockSize)
-	blockSize int         // Input block size
+	fftSize   int // FFT size (should be 2 * blockSize)
+	blockSize int // Input block size
 
 	// FFT plan for forward and inverse transforms
 	plan *algofft.Plan[complex64]
@@ -29,6 +52,19 @@ type OverlapAddEngine struct {
 	timeDomainOut []float32
 }
 
+// EngineType specifies which convolution engine to use.
+type EngineType int
+
+const (
+	// EngineTypeOverlapAdd uses the simple overlap-add engine.
+	// Better for short IRs, higher latency.
+	EngineTypeOverlapAdd EngineType = iota
+
+	// EngineTypeLowLatency uses the partitioned low-latency engine.
+	// Better for long IRs, configurable latency.
+	EngineTypeLowLatency
+)
+
 // ConvolutionReverb implements a convolution-based reverb processor.
 type ConvolutionReverb struct {
 	mu sync.RWMutex
@@ -44,27 +80,76 @@ type ConvolutionReverb struct {
 	wetLevel float64
 	dryLevel float64
 
-	// Overlap-add processing (per channel)
-	engines []*OverlapAddEngine
+	// Engine configuration
+	engineType    EngineType
+	minBlockOrder int // For low-latency engine (6-9)
+	maxBlockOrder int // For low-latency engine
+
+	// Convolution engines (per channel)
+	engines []ConvolutionEngine
 
 	// Processing state
 	enabled bool
 }
 
 // NewConvolutionReverb creates a new convolution reverb processor.
+// Uses EngineTypeLowLatency by default with 64-sample latency.
 func NewConvolutionReverb(sampleRate float64, channels int) *ConvolutionReverb {
 	r := &ConvolutionReverb{
-		sampleRate: sampleRate,
-		channels:   channels,
-		wetLevel:   0.3,
-		dryLevel:   0.7,
-		enabled:    false, // Disabled until IR is loaded
+		sampleRate:    sampleRate,
+		channels:      channels,
+		wetLevel:      0.3,
+		dryLevel:      0.7,
+		engineType:    EngineTypeLowLatency,
+		minBlockOrder: 6,     // 64-sample latency
+		maxBlockOrder: 9,     // 512-sample max partition
+		enabled:       false, // Disabled until IR is loaded
 	}
 
-	// Initialize per-channel overlap-add engines
-	r.engines = make([]*OverlapAddEngine, channels)
+	// Initialize per-channel engines slice
+	r.engines = make([]ConvolutionEngine, channels)
 
 	return r
+}
+
+// NewConvolutionReverbWithEngine creates a new convolution reverb with specified engine type.
+func NewConvolutionReverbWithEngine(sampleRate float64, channels int, engineType EngineType) *ConvolutionReverb {
+	r := NewConvolutionReverb(sampleRate, channels)
+	r.engineType = engineType
+	return r
+}
+
+// SetEngineType sets the convolution engine type.
+// This takes effect on the next LoadImpulseResponse call.
+func (r *ConvolutionReverb) SetEngineType(engineType EngineType) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.engineType = engineType
+}
+
+// SetLatency sets the latency for the low-latency engine.
+// Latency is specified as a block order (6=64, 7=128, 8=256, 9=512 samples).
+// This takes effect on the next LoadImpulseResponse call.
+func (r *ConvolutionReverb) SetLatency(minBlockOrder int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if minBlockOrder < 6 {
+		minBlockOrder = 6
+	}
+	if minBlockOrder > 9 {
+		minBlockOrder = 9
+	}
+	r.minBlockOrder = minBlockOrder
+}
+
+// GetLatency returns the current processing latency in samples.
+func (r *ConvolutionReverb) GetLatency() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	if len(r.engines) > 0 && r.engines[0] != nil {
+		return r.engines[0].Latency()
+	}
+	return 1 << r.minBlockOrder
 }
 
 // NewOverlapAddEngine creates a new overlap-add engine for a given impulse response.
@@ -175,13 +260,132 @@ func (e *OverlapAddEngine) ProcessBlock(input []float32) []float32 {
 	return output
 }
 
-// LoadImpulseResponse loads an impulse response from a WAV file.
+// ProcessBlockInplace implements ConvolutionEngine interface.
+// It processes input samples and writes results to output.
+func (e *OverlapAddEngine) ProcessBlockInplace(input, output []float32) error {
+	if len(input) != len(output) {
+		return fmt.Errorf("input and output must have same length: %d != %d", len(input), len(output))
+	}
+	result := e.ProcessBlock(input)
+	copy(output, result)
+	return nil
+}
+
+// Latency implements ConvolutionEngine interface.
+// Returns the processing latency in samples (equals block size).
+func (e *OverlapAddEngine) Latency() int {
+	return e.blockSize
+}
+
+// Reset implements ConvolutionEngine interface.
+// Clears all internal buffers.
+func (e *OverlapAddEngine) Reset() {
+	for i := range e.overlapBuffer {
+		e.overlapBuffer[i] = 0
+	}
+	for i := range e.inputBuf {
+		e.inputBuf[i] = 0
+	}
+	for i := range e.outputBuf {
+		e.outputBuf[i] = 0
+	}
+	for i := range e.timeDomainOut {
+		e.timeDomainOut[i] = 0
+	}
+}
+
+// LoadImpulseResponse loads an impulse response from a file.
+// Supports .irlib files (IR library format) and falls back to synthetic IR for other files.
+// For .irlib files, use LoadImpulseResponseFromLibrary for more control.
 func (r *ConvolutionReverb) LoadImpulseResponse(path string) error {
+	ext := strings.ToLower(filepath.Ext(path))
+
+	if ext == ".irlib" {
+		// Load first IR from library
+		return r.LoadImpulseResponseFromLibrary(path, "", 0)
+	}
+
+	// Fallback to synthetic IR for backward compatibility
+	return r.loadSyntheticIR()
+}
+
+// LoadImpulseResponseFromLibrary loads an IR from a library file.
+// If irName is non-empty, it loads the IR by name.
+// Otherwise, it loads the IR at the given index.
+func (r *ConvolutionReverb) LoadImpulseResponseFromLibrary(libraryPath, irName string, irIndex int) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	// TODO: Implement WAV file loading
-	// For now, create a simple synthetic IR (e.g., exponential decay)
+	// Open the library file
+	file, err := os.Open(libraryPath)
+	if err != nil {
+		return fmt.Errorf("failed to open IR library: %w", err)
+	}
+	defer file.Close()
+
+	// Create reader
+	reader, err := irformat.NewReader(file)
+	if err != nil {
+		return fmt.Errorf("failed to read IR library: %w", err)
+	}
+
+	// Load the requested IR
+	var ir *irformat.ImpulseResponse
+	if irName != "" {
+		ir, err = reader.LoadIRByName(irName)
+		if err != nil {
+			return fmt.Errorf("failed to load IR %q: %w", irName, err)
+		}
+	} else {
+		ir, err = reader.LoadIR(irIndex)
+		if err != nil {
+			return fmt.Errorf("failed to load IR at index %d: %w", irIndex, err)
+		}
+	}
+
+	// Use the loaded IR data
+	return r.applyImpulseResponse(ir.Audio.Data, ir.Metadata.SampleRate)
+}
+
+// applyImpulseResponse applies loaded IR data to the reverb engines.
+func (r *ConvolutionReverb) applyImpulseResponse(irData [][]float32, irSampleRate float64) error {
+	if len(irData) == 0 {
+		return fmt.Errorf("IR data is empty")
+	}
+
+	// Handle channel count mismatch
+	r.ir = make([][]float32, r.channels)
+
+	for ch := range r.channels {
+		if ch < len(irData) {
+			// Use the corresponding channel from the IR
+			r.ir[ch] = irData[ch]
+		} else {
+			// If IR has fewer channels, duplicate the first channel
+			r.ir[ch] = irData[0]
+		}
+
+		// Create engine based on configured type
+		var err error
+		r.engines[ch], err = r.createEngine(r.ir[ch])
+		if err != nil {
+			return fmt.Errorf("failed to create engine for channel %d: %w", ch, err)
+		}
+	}
+
+	// Note: If sample rates differ, ideally we should resample.
+	// For now, we just store the IR sample rate for reference.
+	_ = irSampleRate
+
+	r.enabled = true
+	return nil
+}
+
+// loadSyntheticIR creates a synthetic IR for testing/fallback purposes.
+func (r *ConvolutionReverb) loadSyntheticIR() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	irLength := int(r.sampleRate * 2.0) // 2 second IR
 	r.ir = make([][]float32, r.channels)
 
@@ -193,12 +397,94 @@ func (r *ConvolutionReverb) LoadImpulseResponse(path string) error {
 			r.ir[ch][i] = float32(0.5 * expApprox(-3.0*t)) // ~1.5s decay time
 		}
 
-		// Create overlap-add engine for this channel
-		r.engines[ch] = NewOverlapAddEngine(r.ir[ch], 256) // Use 256-sample blocks
+		// Create engine based on configured type
+		var err error
+		r.engines[ch], err = r.createEngine(r.ir[ch])
+		if err != nil {
+			return fmt.Errorf("failed to create engine for channel %d: %w", ch, err)
+		}
 	}
 
 	r.enabled = true
 	return nil
+}
+
+// ListLibraryIRs returns the list of IRs available in a library file.
+func ListLibraryIRs(libraryPath string) ([]irformat.IndexEntry, error) {
+	file, err := os.Open(libraryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open IR library: %w", err)
+	}
+	defer file.Close()
+
+	reader, err := irformat.NewReader(file)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read IR library: %w", err)
+	}
+
+	return reader.ListIRs(), nil
+}
+
+// ListLibraryIRsFromReader returns the list of IRs available in a library reader.
+func ListLibraryIRsFromReader(r io.ReadSeeker) ([]irformat.IndexEntry, error) {
+	reader, err := irformat.NewReader(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read IR library: %w", err)
+	}
+
+	return reader.ListIRs(), nil
+}
+
+// LoadImpulseResponseFromReader loads an IR from an io.ReadSeeker (e.g., embedded data).
+// If irName is non-empty, it loads the IR by name.
+// Otherwise, it loads the IR at the given index.
+func (r *ConvolutionReverb) LoadImpulseResponseFromReader(reader io.ReadSeeker, irName string, irIndex int) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Create irformat reader
+	irReader, err := irformat.NewReader(reader)
+	if err != nil {
+		return fmt.Errorf("failed to read IR library: %w", err)
+	}
+
+	// Load the requested IR
+	var ir *irformat.ImpulseResponse
+	if irName != "" {
+		ir, err = irReader.LoadIRByName(irName)
+		if err != nil {
+			return fmt.Errorf("failed to load IR %q: %w", irName, err)
+		}
+	} else {
+		ir, err = irReader.LoadIR(irIndex)
+		if err != nil {
+			return fmt.Errorf("failed to load IR at index %d: %w", irIndex, err)
+		}
+	}
+
+	// Use the loaded IR data
+	return r.applyImpulseResponse(ir.Audio.Data, ir.Metadata.SampleRate)
+}
+
+// LoadImpulseResponseFromBytes loads an IR from embedded byte data.
+// If irName is non-empty, it loads the IR by name.
+// Otherwise, it loads the IR at the given index.
+func (r *ConvolutionReverb) LoadImpulseResponseFromBytes(data []byte, irName string, irIndex int) error {
+	return r.LoadImpulseResponseFromReader(bytes.NewReader(data), irName, irIndex)
+}
+
+// createEngine creates a convolution engine based on the configured type.
+func (r *ConvolutionReverb) createEngine(ir []float32) (ConvolutionEngine, error) {
+	switch r.engineType {
+	case EngineTypeLowLatency:
+		return NewLowLatencyConvolutionEngine(ir, r.minBlockOrder, r.maxBlockOrder)
+	case EngineTypeOverlapAdd:
+		// Use block size matching the low-latency engine's latency for fair comparison
+		blockSize := 1 << r.minBlockOrder
+		return NewOverlapAddEngine(ir, blockSize), nil
+	default:
+		return NewLowLatencyConvolutionEngine(ir, r.minBlockOrder, r.maxBlockOrder)
+	}
 }
 
 // SetSampleRate updates the sample rate and recalculates coefficients.
@@ -284,8 +570,15 @@ func (r *ConvolutionReverb) ProcessBlock(input, output []float32, channel int) {
 		return
 	}
 
-	// Process block using overlap-add with optimized FFT
-	wet := r.engines[channel].ProcessBlock(input)
+	// Process block using convolution engine
+	// Use a temporary buffer for wet signal
+	wet := make([]float32, len(input))
+	err := r.engines[channel].ProcessBlockInplace(input, wet)
+	if err != nil {
+		// On error, just copy input to output
+		copy(output, input)
+		return
+	}
 
 	// Mix dry and wet
 	for i := range output {
@@ -321,5 +614,3 @@ func nextPowerOf2(n int) int {
 	}
 	return p
 }
-
-

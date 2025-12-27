@@ -1,11 +1,61 @@
 package dsp
 
 import (
+	"io"
 	"math"
 	"testing"
 
 	"github.com/MeKo-Christian/algo-fft"
+	"pw-convoverb/pkg/irformat"
 )
+
+// memFile is an in-memory file that supports io.ReadWriteSeeker for testing.
+type memFile struct {
+	data []byte
+	pos  int64
+}
+
+func newMemFile() *memFile {
+	return &memFile{data: make([]byte, 0)}
+}
+
+func (m *memFile) Write(p []byte) (n int, err error) {
+	needed := int(m.pos) + len(p)
+	if needed > len(m.data) {
+		newData := make([]byte, needed)
+		copy(newData, m.data)
+		m.data = newData
+	}
+	copy(m.data[m.pos:], p)
+	m.pos += int64(len(p))
+	return len(p), nil
+}
+
+func (m *memFile) Read(p []byte) (n int, err error) {
+	if m.pos >= int64(len(m.data)) {
+		return 0, io.EOF
+	}
+	n = copy(p, m.data[m.pos:])
+	m.pos += int64(n)
+	return n, nil
+}
+
+func (m *memFile) Seek(offset int64, whence int) (int64, error) {
+	var newPos int64
+	switch whence {
+	case io.SeekStart:
+		newPos = offset
+	case io.SeekCurrent:
+		newPos = m.pos + offset
+	case io.SeekEnd:
+		newPos = int64(len(m.data)) + offset
+	}
+	if newPos < 0 {
+		return 0, io.EOF
+	}
+	m.pos = newPos
+	return m.pos, nil
+}
 
 func TestNewConvolutionReverb(t *testing.T) {
 	const sampleRate = 48000.0
@@ -284,4 +334,210 @@ func absComplexFloat32(c complex64) float32 {
 	r := real(c)
 	i := imag(c)
 	return float32(math.Sqrt(float64(r*r + i*i)))
+}
+
+// TestLoadImpulseResponseFromLibrary tests loading an IR from an in-memory library.
+func TestLoadImpulseResponseFromLibrary(t *testing.T) {
+	// Create a test IR library in memory
+	lib := irformat.NewIRLibrary()
+
+	// Add a test IR with a simple exponential decay
+	irLength := 1024
+	irData := make([][]float32, 2) // stereo
+	for ch := range 2 {
+		irData[ch] = make([]float32, irLength)
+		for i := range irLength {
+			irData[ch][i] = float32(0.8 * math.Exp(-3.0*float64(i)/float64(irLength)))
+		}
+	}
+
+	ir := irformat.NewImpulseResponse("Test IR", 48000, 2, irData)
+	ir.Metadata.Category = "Test"
+	lib.AddIR(ir)
+
+	// Write library to buffer
+	buf := newMemFile()
+	err := irformat.WriteLibrary(buf, lib)
+	if err != nil {
+		t.Fatalf("Failed to write library: %v", err)
+	}
+
+	// Read back and verify
+	buf.Seek(0, io.SeekStart)
+	reader, err := irformat.NewReader(buf)
+	if err != nil {
+		t.Fatalf("Failed to create reader: %v", err)
+	}
+
+	if reader.IRCount() != 1 {
+		t.Fatalf("Expected 1 IR, got %d", reader.IRCount())
+	}
+
+	// Test ListLibraryIRs function (requires a file, so we skip that)
+
+	// Create reverb and apply the IR directly
+	reverb := NewConvolutionReverb(48000, 2)
+
+	// Load IR from the library
+	loadedIR, err := reader.LoadIR(0)
+	if err != nil {
+		t.Fatalf("Failed to load IR: %v", err)
+	}
+
+	// Apply to reverb using the internal method
+	err = reverb.applyImpulseResponse(loadedIR.Audio.Data, loadedIR.Metadata.SampleRate)
+	if err != nil {
+		t.Fatalf("Failed to apply impulse response: %v", err)
+	}
+
+	// Verify reverb is enabled
+	if !reverb.enabled {
+		t.Error("Reverb should be enabled after loading IR")
+	}
+
+	// Test processing a block
+	input := make([]float32, 64)
+	output := make([]float32, 64)
+	for i := range input {
+		input[i] = 0.5
+	}
+
+	reverb.ProcessBlock(input, output, 0)
+
+	// Verify output has some signal
+	hasNonZero := false
+	for _, s := range output {
+		if s != 0 {
+			hasNonZero = true
+			break
+		}
+	}
+
+	if !hasNonZero {
+		t.Error("Output should have non-zero samples after processing")
+	}
+}
+
+// TestLoadIRByNameDSP tests loading an IR by name from a library.
+func TestLoadIRByNameDSP(t *testing.T) {
+	// Create a test library with multiple IRs
+	lib := irformat.NewIRLibrary()
+
+	names := []string{"Small Room", "Large Hall", "Plate"}
+	for _, name := range names {
+		irData := make([][]float32, 1) // mono
+		irData[0] = make([]float32, 512)
+		for i := range 512 {
+			irData[0][i] = float32(0.5 * math.Exp(-2.0*float64(i)/512.0))
+		}
+		ir := irformat.NewImpulseResponse(name, 48000, 1, irData)
+		lib.AddIR(ir)
+	}
+
+	// Write library to buffer
+	buf := newMemFile()
+	err := irformat.WriteLibrary(buf, lib)
+	if err != nil {
+		t.Fatalf("Failed to write library: %v", err)
+	}
+
+	// Read back
+	buf.Seek(0, io.SeekStart)
+	reader, err := irformat.NewReader(buf)
+	if err != nil {
+		t.Fatalf("Failed to create reader: %v", err)
+	}
+
+	// Load by name
+	ir, err := reader.LoadIRByName("Large Hall")
+	if err != nil {
+		t.Fatalf("Failed to load IR by name: %v", err)
+	}
+
+	if ir.Metadata.Name != "Large Hall" {
+		t.Errorf("Expected name 'Large Hall', got %q", ir.Metadata.Name)
+	}
+
+	// Test loading non-existent name
+	_, err = reader.LoadIRByName("Non-existent")
+	if err == nil {
+		t.Error("Expected error when loading non-existent IR")
+	}
+}
+
+// TestLoadImpulseResponseFromBytes tests loading an IR from embedded byte data.
+func TestLoadImpulseResponseFromBytes(t *testing.T) {
+	// Create a test library
+	lib := irformat.NewIRLibrary()
+
+	irData := make([][]float32, 2)
+	for ch := range 2 {
+		irData[ch] = make([]float32, 512)
+		for i := range 512 {
+			irData[ch][i] = float32(0.6 * math.Exp(-2.0*float64(i)/512.0))
+		}
+	}
+
+	ir := irformat.NewImpulseResponse("Embedded Test", 48000, 2, irData)
+	lib.AddIR(ir)
+
+	// Write to buffer
+	buf := newMemFile()
+	err := irformat.WriteLibrary(buf, lib)
+	if err != nil {
+		t.Fatalf("Failed to write library: %v", err)
+	}
+
+	// Get bytes
+	embeddedData := buf.data
+
+	// Create reverb and load from bytes
+	reverb := NewConvolutionReverb(48000, 2)
+	err = reverb.LoadImpulseResponseFromBytes(embeddedData, "", 0)
+	if err != nil {
+		t.Fatalf("Failed to load IR from bytes: %v", err)
+	}
+
+	if !reverb.enabled {
+		t.Error("Reverb should be enabled after loading IR")
+	}
+
+	// Test loading by name
+	reverb2 := NewConvolutionReverb(48000, 2)
+	err = reverb2.LoadImpulseResponseFromBytes(embeddedData, "Embedded Test", 0)
+	if err != nil {
+		t.Fatalf("Failed to load IR by name from bytes: %v", err)
+	}
+
+	if !reverb2.enabled {
+		t.Error("Reverb should be enabled after loading IR by name")
+	}
+}
+
+// TestApplyImpulseResponseChannelMismatch tests handling of channel count mismatch.
+func TestApplyImpulseResponseChannelMismatch(t *testing.T) {
+	// Create a mono IR
+	irData := make([][]float32, 1)
+	irData[0] = make([]float32, 256)
+	for i := range 256 {
+		irData[0][i] = float32(0.7 * math.Exp(-2.0*float64(i)/256.0))
+	}
+
+	// Create stereo reverb
+	reverb := NewConvolutionReverb(48000, 2)
+
+	// Apply mono IR to stereo reverb - should duplicate mono to both channels
+	err := reverb.applyImpulseResponse(irData, 48000)
+	if err != nil {
+		t.Fatalf("Failed to apply mono IR to stereo reverb: %v", err)
+	}
+
+	if !reverb.enabled {
+		t.Error("Reverb should be enabled")
+	}
+
+	// Both channels should have engines
+	if reverb.engines[0] == nil || reverb.engines[1] == nil {
+		t.Error("Both channels should have engines")
+	}
 }

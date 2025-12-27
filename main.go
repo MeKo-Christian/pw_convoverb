@@ -20,6 +20,8 @@ package main
 import "C"
 
 import (
+	"bytes"
+	_ "embed"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -30,6 +32,9 @@ import (
 
 	"pw-convoverb/dsp"
 )
+
+//go:embed assets/ir-library.irlib
+var embeddedIRLibrary []byte
 
 // Audio configuration.
 var (
@@ -88,7 +93,11 @@ func process_channel_go(in *C.float, out *C.float, samples C.int, rate C.int, ch
 
 func main() {
 	// Command-line flags for reverb parameters
-	irFile := flag.String("ir", "", "Path to impulse response WAV file")
+	irFile := flag.String("ir", "", "Path to impulse response file (.irlib or legacy .aif)")
+	irLibrary := flag.String("ir-library", "", "Path to IR library file (.irlib)")
+	irName := flag.String("ir-name", "", "Name of IR to load from library")
+	irIndex := flag.Int("ir-index", 0, "Index of IR to load from library (default: 0)")
+	listIRs := flag.Bool("list-irs", false, "List available IRs in the library and exit")
 	wetLevel := flag.Float64("wet", 0.3, "Wet (reverb) level (0.0-1.0)")
 	dryLevel := flag.Float64("dry", 0.7, "Dry (direct) level (0.0-1.0)")
 	noTUI := flag.Bool("no-tui", false, "Disable interactive TUI")
@@ -108,8 +117,61 @@ func main() {
 		//nolint:forbidigo // CLI help output requires fmt.Println
 		fmt.Println("\nUsage: pw-convoverb [options]")
 		//nolint:forbidigo // CLI help output requires fmt.Println
+		fmt.Println("\nExamples:")
+		//nolint:forbidigo // CLI help output requires fmt.Println
+		fmt.Println("  pw-convoverb -ir-library ./ir-library.irlib")
+		//nolint:forbidigo // CLI help output requires fmt.Println
+		fmt.Println("  pw-convoverb -ir-library ./ir-library.irlib -ir-name \"Large Hall\"")
+		//nolint:forbidigo // CLI help output requires fmt.Println
+		fmt.Println("  pw-convoverb -ir-library ./ir-library.irlib -ir-index 5")
+		//nolint:forbidigo // CLI help output requires fmt.Println
+		fmt.Println("  pw-convoverb -ir-library ./ir-library.irlib -list-irs")
+		//nolint:forbidigo // CLI help output requires fmt.Println
 		fmt.Println("\nOptions:")
 		flag.PrintDefaults()
+		os.Exit(0)
+	}
+
+	// Handle -list-irs: list available IRs and exit
+	if *listIRs {
+		libraryPath := *irLibrary
+		if libraryPath == "" {
+			libraryPath = *irFile
+		}
+
+		var entries []dsp.IRIndexEntry
+		var err error
+		var source string
+
+		if libraryPath != "" {
+			// List from external file
+			entries, err = dsp.ListLibraryIRs(libraryPath)
+			source = libraryPath
+		} else {
+			// List from embedded library
+			entries, err = dsp.ListLibraryIRsFromReader(bytes.NewReader(embeddedIRLibrary))
+			source = "(embedded)"
+		}
+
+		if err != nil {
+			//nolint:forbidigo // CLI error output
+			fmt.Printf("ERROR: Failed to read IR library: %v\n", err)
+			os.Exit(1)
+		}
+
+		//nolint:forbidigo // CLI output
+		fmt.Printf("Available IRs in %s:\n\n", source)
+		for i, entry := range entries {
+			channelStr := "mono"
+			if entry.Channels == 2 {
+				channelStr = "stereo"
+			} else if entry.Channels > 2 {
+				channelStr = fmt.Sprintf("%dch", entry.Channels)
+			}
+			//nolint:forbidigo // CLI output
+			fmt.Printf("  %3d: %-30s (category: %s, %.0fHz, %s, %.2fs)\n",
+				i, entry.Name, entry.Category, entry.SampleRate, channelStr, entry.Duration())
+		}
 		os.Exit(0)
 	}
 
@@ -134,8 +196,22 @@ func main() {
 	reverb = dsp.NewConvolutionReverb(float64(sampleRate), channels)
 	slog.Info("Reverb initialized", "defaultSampleRate", sampleRate, "channels", channels)
 
-	// Load impulse response if provided
-	if *irFile != "" {
+	// Load impulse response
+	if *irLibrary != "" {
+		// Load from external IR library file
+		if err := reverb.LoadImpulseResponseFromLibrary(*irLibrary, *irName, *irIndex); err != nil {
+			slog.Error("Failed to load impulse response from library", "library", *irLibrary, "name", *irName, "index", *irIndex, "error", err)
+			//nolint:forbidigo // critical error output to user
+			fmt.Printf("ERROR: Failed to load impulse response: %v\n", err)
+			os.Exit(1)
+		}
+		if *irName != "" {
+			slog.Info("Impulse response loaded from library", "library", *irLibrary, "name", *irName)
+		} else {
+			slog.Info("Impulse response loaded from library", "library", *irLibrary, "index", *irIndex)
+		}
+	} else if *irFile != "" {
+		// Legacy: load from single file
 		if err := reverb.LoadImpulseResponse(*irFile); err != nil {
 			slog.Error("Failed to load impulse response", "file", *irFile, "error", err)
 			//nolint:forbidigo // critical error output to user
@@ -143,6 +219,19 @@ func main() {
 			os.Exit(1)
 		}
 		slog.Info("Impulse response loaded", "file", *irFile)
+	} else {
+		// Load from embedded library (default)
+		if err := reverb.LoadImpulseResponseFromBytes(embeddedIRLibrary, *irName, *irIndex); err != nil {
+			slog.Error("Failed to load impulse response from embedded library", "name", *irName, "index", *irIndex, "error", err)
+			//nolint:forbidigo // critical error output to user
+			fmt.Printf("ERROR: Failed to load impulse response: %v\n", err)
+			os.Exit(1)
+		}
+		if *irName != "" {
+			slog.Info("Impulse response loaded from embedded library", "name", *irName)
+		} else {
+			slog.Info("Impulse response loaded from embedded library", "index", *irIndex)
+		}
 	}
 
 	// Configure reverb parameters from command-line flags

@@ -67,8 +67,8 @@ func TestIntegrationStereoIndependence(t *testing.T) {
 
 	// Set different signals for each channel
 	for i := 0; i < blockSize; i++ {
-		testSignal[i*channels+0] = 0.8  // Left channel
-		testSignal[i*channels+1] = 0.2  // Right channel
+		testSignal[i*channels+0] = 0.8 // Left channel
+		testSignal[i*channels+1] = 0.2 // Right channel
 	}
 
 	processAudioBuffer(testSignal)
