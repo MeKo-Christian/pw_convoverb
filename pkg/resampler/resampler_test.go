@@ -212,12 +212,12 @@ func TestCalculateOutputLength(t *testing.T) {
 		dstRate  float64
 		expected int
 	}{
-		{1000, 48000, 48000, 1000},   // No change
-		{1000, 96000, 48000, 500},    // Downsample 2x
-		{1000, 44100, 88200, 2000},   // Upsample 2x
-		{8820, 88200, 48000, 4800},   // Actual use case
-		{0, 48000, 44100, 0},         // Empty
-		{100, 44100, 48000, 109},     // Arbitrary ratio
+		{1000, 48000, 48000, 1000}, // No change
+		{1000, 96000, 48000, 500},  // Downsample 2x
+		{1000, 44100, 88200, 2000}, // Upsample 2x
+		{8820, 88200, 48000, 4800}, // Actual use case
+		{0, 48000, 44100, 0},       // Empty
+		{100, 44100, 48000, 109},   // Arbitrary ratio
 	}
 
 	for _, tt := range tests {
@@ -228,7 +228,6 @@ func TestCalculateOutputLength(t *testing.T) {
 		}
 	}
 }
-
 
 // Helper functions
 
