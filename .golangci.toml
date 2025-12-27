@@ -1,0 +1,72 @@
+version = '2'
+
+[linters]
+default = 'all'
+disable = [
+  'depguard',
+  'exhaustive',
+  'exhaustruct',
+  'godox',
+  'ireturn',
+  'mnd',
+  'musttag',
+  'nlreturn',
+  'wsl',
+]
+enable = ['wsl_v5']
+
+[linters.settings]
+[linters.settings.cyclop]
+max-complexity = 15
+
+[linters.settings.funlen]
+lines = 90
+statements = 70
+
+[linters.settings.gocognit]
+min-complexity = 60
+
+[linters.settings.varnamelen]
+ignore-names = ['i', 'j', 'n', 'ok', 'db', 'id', 'in', 'ev', 's', 'x', 't', 'ch']
+
+[linters.settings.wsl_v5]
+allow-first-in-block = true
+allow-whole-block = false
+branch-max-lines = 2
+disable = ['decl']
+
+[linters.exclusions]
+generated = 'lax'
+presets = ['comments', 'common-false-positives', 'legacy', 'std-error-handling']
+
+[[linters.exclusions.rules]]
+linters = ['gosec']
+text = 'G601:'
+
+[[linters.exclusions.rules]]
+linters = ['gochecknoglobals']
+path = 'main\.go'
+text = '(channels|sampleRate|reverb) is a global variable'
+
+[[linters.exclusions.rules]]
+linters = ['gochecknoglobals']
+path = 'tui\.go'
+text = 'paramNames is a global variable'
+
+[[linters.exclusions.rules]]
+linters = ['testpackage']
+path = 'dsp/convolution_test\.go'
+text = 'package should be `dsp_test`'
+
+[severity]
+default = 'warn'
+
+[[severity.rules]]
+linters = ['exhaustive', 'exhaustruct', 'godox']
+severity = 'info'
+
+[formatters]
+enable = ['gci', 'gofumpt', 'goimports']
+
+[formatters.exclusions]
+generated = 'lax'

@@ -1,0 +1,48 @@
+# Binaries
+pw-convoverb
+*.so
+*.o
+
+# Go build artifacts
+*.exe
+*.test
+*.out
+
+# Test coverage
+coverage.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+csrc/*.so
+csrc/*.o
+
+# Agents
+.claude/
+
+# Log files
+pw-convoverb.log
+*.log
+
+# Integration coverage
+integration_coverage.out
+integration_coverage.html
+
+# Trunk
+.trunk/
