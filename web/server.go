@@ -151,6 +151,7 @@ func (s *Server) Start() error {
 	}
 
 	slog.Info("Web server starting", "port", s.port, "url", fmt.Sprintf("http://localhost:%d", s.port))
+
 	return s.httpServer.ListenAndServe()
 }
 
@@ -159,6 +160,7 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	if s.httpServer != nil {
 		return s.httpServer.Shutdown(ctx)
 	}
+
 	return nil
 }
 
@@ -210,6 +212,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Start client pumps
 	go client.writePump()
+
 	client.readPump(func(msg []byte) {
 		s.handleClientMessage(msg)
 	})
@@ -227,29 +230,34 @@ func (s *Server) sendState(client *Client) {
 	s.mu.RUnlock()
 
 	msg := Message{Type: "state", Payload: state}
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		slog.Error("Failed to marshal state", "error", err)
 		return
 	}
+
 	client.send <- data
 }
 
 // sendIRList sends the IR list to a client.
 func (s *Server) sendIRList(client *Client) {
 	msg := Message{Type: "ir_list", Payload: s.irList}
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		slog.Error("Failed to marshal IR list", "error", err)
 		return
 	}
+
 	client.send <- data
 }
 
 // handleClientMessage handles incoming WebSocket messages.
 func (s *Server) handleClientMessage(data []byte) {
 	var msg Message
-	if err := json.Unmarshal(data, &msg); err != nil {
+	err := json.Unmarshal(data, &msg)
+	if err != nil {
 		slog.Error("Failed to parse WebSocket message", "error", err)
 		return
 	}
@@ -301,11 +309,13 @@ func (s *Server) broadcastParamChange(param string, value float64) {
 			"value": value,
 		},
 	}
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		slog.Error("Failed to marshal param change", "error", err)
 		return
 	}
+
 	s.hub.Broadcast(data)
 }
 
@@ -318,11 +328,13 @@ func (s *Server) broadcastIRChange(index int, name string) {
 			"name":  name,
 		},
 	}
+
 	data, err := json.Marshal(msg)
 	if err != nil {
 		slog.Error("Failed to marshal IR change", "error", err)
 		return
 	}
+
 	s.hub.Broadcast(data)
 }
 
@@ -349,10 +361,12 @@ func (s *Server) meterBroadcastLoop() {
 		}
 
 		msg := Message{Type: "meters", Payload: meters}
+
 		data, err := json.Marshal(msg)
 		if err != nil {
 			continue // Skip this tick on marshal error
 		}
+
 		s.hub.Broadcast(data)
 	}
 }
@@ -362,13 +376,16 @@ func linToDB(l float32) float64 {
 	if l <= 1e-9 {
 		return -96.0
 	}
+
 	db := 20 * math.Log10(float64(l))
 	if db < -96.0 {
 		return -96.0
 	}
+
 	if db > 6.0 {
 		return 6.0
 	}
+
 	return db
 }
 

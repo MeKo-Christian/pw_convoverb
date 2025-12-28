@@ -13,7 +13,7 @@ import (
 // The partitioned convolution works by:
 // 1. Dividing the IR into multiple stages with increasing FFT sizes
 // 2. Each stage runs at a different rate (smaller stages run more often)
-// 3. This distributes CPU load across multiple blocks while maintaining low latency
+// 3. This distributes CPU load across multiple blocks while maintaining low latency.
 type ConvolutionStage struct {
 	// FFT configuration
 	fftOrder    int // FFT order (e.g., 7 for 128-sample blocks)
@@ -118,12 +118,13 @@ func (s *ConvolutionStage) CalculateIRSpectrums(ir []float32) error {
 		s.irSpectrums[blockIdx] = make([]complex64, spectrumLen)
 
 		// Zero the first half (zero-padding for linear convolution)
-		for i := 0; i < s.fftSizeHalf; i++ {
+		for i := range s.fftSizeHalf {
 			tempIR[i] = 0
 		}
 
 		// Copy IR data to second half
 		srcStart := s.outputPos + blockIdx*s.fftSizeHalf
+
 		srcEnd := srcStart + s.fftSizeHalf
 		if srcEnd > len(ir) {
 			srcEnd = len(ir)
@@ -205,7 +206,7 @@ func (s *ConvolutionStage) PerformConvolution(signalIn, signalOut []float32) err
 			// Output position: outputPos + latency - fftSizeHalf + blockIdx * half
 			outPos := s.outputPos + s.latency - s.fftSizeHalf + blockIdx*half
 			if outPos >= 0 && outPos+half <= len(signalOut) {
-				for i := 0; i < half; i++ {
+				for i := range half {
 					signalOut[outPos+i] += s.convolvedTime[i]
 				}
 			}
@@ -226,17 +227,19 @@ func (s *ConvolutionStage) Reset() {
 	for i := range s.signalFreq {
 		s.signalFreq[i] = 0
 	}
+
 	for i := range s.convolved {
 		s.convolved[i] = 0
 	}
+
 	for i := range s.convolvedTime {
 		s.convolvedTime[i] = 0
 	}
 }
 
-// complexMultiplyInplace performs element-wise complex multiplication: dest *= src
+// complexMultiplyInplace performs element-wise complex multiplication: dest *= src.
 func complexMultiplyInplace(dest, src []complex64, n int) {
-	for i := 0; i < n; i++ {
+	for i := range n {
 		dest[i] *= src[i]
 	}
 }

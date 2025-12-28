@@ -33,6 +33,7 @@ func TestFloat32ToF16ToFloat32RoundTrip(t *testing.T) {
 				if !math.IsNaN(float64(result)) {
 					t.Errorf("expected NaN, got %v", result)
 				}
+
 				return
 			}
 
@@ -41,9 +42,11 @@ func TestFloat32ToF16ToFloat32RoundTrip(t *testing.T) {
 				if math.Signbit(float64(tt.input)) {
 					expectedSign = -1
 				}
+
 				if !math.IsInf(float64(result), expectedSign) {
 					t.Errorf("expected infinity, got %v", result)
 				}
+
 				return
 			}
 
@@ -63,6 +66,7 @@ func TestFloat32ToF16ToFloat32RoundTrip(t *testing.T) {
 				if relErr < 0 {
 					relErr = -relErr
 				}
+
 				if relErr > 0.01 {
 					t.Errorf("relative error too large: input=%v, output=%v, relErr=%v", tt.input, result, relErr)
 				}
@@ -71,6 +75,7 @@ func TestFloat32ToF16ToFloat32RoundTrip(t *testing.T) {
 				if absErr < 0 {
 					absErr = -absErr
 				}
+
 				if absErr > 1e-10 {
 					t.Errorf("absolute error too large: input=%v, output=%v, err=%v", tt.input, result, absErr)
 				}
@@ -94,10 +99,12 @@ func TestFloat32ToF16Slice(t *testing.T) {
 
 	for i, expected := range input {
 		result := output[i]
+
 		absErr := result - expected
 		if absErr < 0 {
 			absErr = -absErr
 		}
+
 		if absErr > 0.01 {
 			t.Errorf("value %d: expected %v, got %v, error %v", i, expected, result, absErr)
 		}
@@ -110,6 +117,7 @@ func TestF16ToFloat32InvalidInput(t *testing.T) {
 			t.Error("expected panic for odd-length input")
 		}
 	}()
+
 	F16ToFloat32([]byte{1, 2, 3})
 }
 
@@ -120,6 +128,7 @@ func TestFloat32ToF16InterleavedStereo(t *testing.T) {
 	}
 
 	f16bytes := Float32ToF16Interleaved(channels)
+
 	expectedLen := 2 * 4 * 2
 	if len(f16bytes) != expectedLen {
 		t.Errorf("expected %d bytes, got %d", expectedLen, len(f16bytes))
@@ -147,10 +156,12 @@ func TestF16ToFloat32DeinterleavedStereo(t *testing.T) {
 		for sample := range channels[ch] {
 			expected := channels[ch][sample]
 			result := reconstructed[ch][sample]
+
 			absErr := result - expected
 			if absErr < 0 {
 				absErr = -absErr
 			}
+
 			if absErr > 0.01 {
 				t.Errorf("ch %d sample %d: expected %v, got %v", ch, sample, expected, result)
 			}
@@ -207,7 +218,7 @@ func TestSpecialValuesConversion(t *testing.T) {
 		checkFn func(float32) bool
 	}{
 		{"positive zero", 0.0, func(v float32) bool { return v == 0.0 }},
-		{"negative zero", -0.0, func(v float32) bool { return v == 0.0 }}, // Sign may not be preserved
+		{"negative zero", float32(math.Copysign(0, -1)), func(v float32) bool { return v == 0.0 }}, // Sign may not be preserved
 		{"positive infinity", float32(math.Inf(1)), func(v float32) bool { return math.IsInf(float64(v), 1) }},
 		{"negative infinity", float32(math.Inf(-1)), func(v float32) bool { return math.IsInf(float64(v), -1) }},
 		{"NaN", float32(math.NaN()), func(v float32) bool { return math.IsNaN(float64(v)) }},
@@ -216,6 +227,7 @@ func TestSpecialValuesConversion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			f16bits := float32ToF16(tt.value)
+
 			result := f16ToFloat32(f16bits)
 			if !tt.checkFn(result) {
 				t.Errorf("failed check for %v, got %v", tt.value, result)
@@ -231,7 +243,8 @@ func BenchmarkFloat32ToF16(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		Float32ToF16(data)
 	}
 }
@@ -241,10 +254,12 @@ func BenchmarkF16ToFloat32(b *testing.B) {
 	for i := range data {
 		data[i] = float32(i) * 0.001
 	}
+
 	f16bytes := Float32ToF16(data)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		F16ToFloat32(f16bytes)
 	}
 }
@@ -259,7 +274,8 @@ func BenchmarkFloat32ToF16Interleaved(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		Float32ToF16Interleaved(channels)
 	}
 }
@@ -272,10 +288,12 @@ func BenchmarkF16ToFloat32Deinterleaved(b *testing.B) {
 			channels[i][j] = float32(j) * 0.001
 		}
 	}
+
 	f16bytes := Float32ToF16Interleaved(channels)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		F16ToFloat32Deinterleaved(f16bytes, 2)
 	}
 }

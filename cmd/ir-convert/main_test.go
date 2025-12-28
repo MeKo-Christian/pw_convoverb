@@ -20,12 +20,14 @@ func TestConvertAssetsDirectory(t *testing.T) {
 	// Skip if no .aif files exist (they've been converted to embedded library)
 	dirEntries, _ := os.ReadDir(assetsDir)
 	hasAIF := false
+
 	for _, entry := range dirEntries {
 		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".aif" {
 			hasAIF = true
 			break
 		}
 	}
+
 	if !hasAIF {
 		t.Skip("no .aif files in assets (already converted to embedded library)")
 	}
@@ -44,6 +46,7 @@ func TestConvertAssetsDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Output file not created: %v", err)
 	}
+
 	if info.Size() < 1000 {
 		t.Errorf("Output file too small: %d bytes", info.Size())
 	}
@@ -64,6 +67,7 @@ func TestConvertAssetsDirectory(t *testing.T) {
 	if reader.IRCount() == 0 {
 		t.Error("Library has no IRs")
 	}
+
 	t.Logf("Library contains %d IRs", reader.IRCount())
 
 	// Verify each IR can be loaded
@@ -79,12 +83,15 @@ func TestConvertAssetsDirectory(t *testing.T) {
 		if ir.Metadata.SampleRate <= 0 {
 			t.Errorf("IR %d has invalid sample rate: %v", i, ir.Metadata.SampleRate)
 		}
+
 		if ir.Metadata.Channels <= 0 {
 			t.Errorf("IR %d has invalid channel count: %d", i, ir.Metadata.Channels)
 		}
+
 		if len(ir.Audio.Data) != ir.Metadata.Channels {
 			t.Errorf("IR %d audio channels mismatch: %d vs %d", i, len(ir.Audio.Data), ir.Metadata.Channels)
 		}
+
 		for ch, data := range ir.Audio.Data {
 			if len(data) != ir.Metadata.Length {
 				t.Errorf("IR %d channel %d length mismatch: %d vs %d", i, ch, len(data), ir.Metadata.Length)
@@ -151,12 +158,14 @@ func TestInferTags(t *testing.T) {
 		// Check all expected tags are present
 		for _, exp := range tc.expected {
 			found := false
+
 			for _, tag := range result {
 				if tag == exp {
 					found = true
 					break
 				}
 			}
+
 			if !found {
 				t.Errorf("inferTags(%q): missing expected tag %q", tc.name, exp)
 			}
@@ -176,12 +185,14 @@ func TestNormalizeAudio(t *testing.T) {
 
 	// Find peak in result
 	var peak float32
+
 	for _, ch := range result {
 		for _, sample := range ch {
 			abs := sample
 			if abs < 0 {
 				abs = -abs
 			}
+
 			if abs > peak {
 				peak = abs
 			}
@@ -207,22 +218,26 @@ func TestFileSizeReduction(t *testing.T) {
 	// Skip if no .aif files exist (they've been converted to embedded library)
 	dirEntries, _ := os.ReadDir(assetsDir)
 	hasAIF := false
+
 	for _, entry := range dirEntries {
 		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".aif" {
 			hasAIF = true
 			break
 		}
 	}
+
 	if !hasAIF {
 		t.Skip("no .aif files in assets (already converted to embedded library)")
 	}
 
 	// Calculate total size of source AIFF files
 	var sourceSize int64
+
 	entries, err := os.ReadDir(assetsDir)
 	if err != nil {
 		t.Fatalf("Failed to read assets dir: %v", err)
 	}
+
 	for _, entry := range entries {
 		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".aif" {
 			info, err := entry.Info()

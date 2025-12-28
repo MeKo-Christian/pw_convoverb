@@ -18,6 +18,7 @@ func generateRealisticIR(sampleRate int, seconds float64, channels int) [][]floa
 	if channels <= 0 {
 		channels = 1
 	}
+
 	n := int(seconds * float64(sampleRate))
 	if n < 1 {
 		n = 1
@@ -37,7 +38,7 @@ func generateRealisticIR(sampleRate int, seconds float64, channels int) [][]floa
 	earlyGains := []float64{1.0, 0.55, 0.42, 0.32, 0.22, 0.14, 0.08}
 
 	ir := make([][]float32, channels)
-	for ch := 0; ch < channels; ch++ {
+	for ch := range channels {
 		buf := make([]float32, n)
 
 		// Early reflections.
@@ -45,6 +46,7 @@ func generateRealisticIR(sampleRate int, seconds float64, channels int) [][]floa
 			idx := int((earlyMs[i] / 1000.0) * float64(sampleRate))
 			if idx >= 0 && idx < n {
 				stereoSkew := 1.0
+
 				if channels > 1 {
 					// Make L/R slightly different to avoid perfect correlation.
 					if ch%2 == 0 {
@@ -53,16 +55,18 @@ func generateRealisticIR(sampleRate int, seconds float64, channels int) [][]floa
 						stereoSkew = 1.03
 					}
 				}
+
 				sign := float32(1)
 				if (i+ch)%2 == 1 {
 					sign = -1
 				}
+
 				buf[idx] += sign * float32(earlyGains[i]*stereoSkew)
 			}
 		}
 
 		// Noisy tail.
-		for i := 0; i < n; i++ {
+		for i := range n {
 			t := float64(i) / float64(sampleRate)
 			env := math.Exp(-decayK * t)
 			noise := (rng.Float64()*2 - 1) * 0.02
@@ -78,12 +82,14 @@ func generateRealisticIR(sampleRate int, seconds float64, channels int) [][]floa
 func generateTestInput(blockSize int) []float32 {
 	// A stable, deterministic “music-ish” signal (2 sines + tiny noise).
 	rng := rand.New(rand.NewSource(2))
+
 	in := make([]float32, blockSize)
-	for i := 0; i < blockSize; i++ {
+	for i := range blockSize {
 		s := 0.6*math.Sin(float64(i)*2*math.Pi*440/48000.0) + 0.3*math.Sin(float64(i)*2*math.Pi*1100/48000.0)
 		s += (rng.Float64()*2 - 1) * 0.001
 		in[i] = float32(s)
 	}
+
 	return in
 }
 
@@ -114,6 +120,7 @@ func BenchmarkRealisticLowLatencyEngine_Stereo(b *testing.B) {
 			if err != nil {
 				b.Fatalf("failed to create left engine: %v", err)
 			}
+
 			right, err := NewLowLatencyConvolutionEngine(irData[1], tc.minBlockOrder, tc.maxBlockOrder)
 			if err != nil {
 				b.Fatalf("failed to create right engine: %v", err)
@@ -126,11 +133,14 @@ func BenchmarkRealisticLowLatencyEngine_Stereo(b *testing.B) {
 			b.ReportAllocs()
 			b.SetBytes(int64(tc.blockSize * channels * 4))
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				if err := left.ProcessBlock(in, outL); err != nil {
+
+			for range b.N {
+				err := left.ProcessBlock(in, outL)
+				if err != nil {
 					b.Fatalf("left ProcessBlock failed: %v", err)
 				}
-				if err := right.ProcessBlock(in, outR); err != nil {
+				err = right.ProcessBlock(in, outR)
+				if err != nil {
 					b.Fatalf("right ProcessBlock failed: %v", err)
 				}
 			}
@@ -154,11 +164,14 @@ func BenchmarkRealisticConvolutionReverb_ProcessBlock_Allocations(b *testing.B) 
 	r.maxBlockOrder = 9 // 512
 
 	irData := generateRealisticIR(sampleRate, seconds, channels)
+
 	r.mu.Lock()
-	if err := r.applyImpulseResponseUnlocked(irData, sampleRate); err != nil {
+	err := r.applyImpulseResponseUnlocked(irData, sampleRate)
+	if err != nil {
 		r.mu.Unlock()
 		b.Fatalf("failed to apply IR: %v", err)
 	}
+
 	r.mu.Unlock()
 
 	in := generateTestInput(blockSize)
@@ -168,7 +181,8 @@ func BenchmarkRealisticConvolutionReverb_ProcessBlock_Allocations(b *testing.B) 
 	b.ReportAllocs()
 	b.SetBytes(int64(blockSize * channels * 4))
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		r.ProcessBlock(in, outL, 0)
 		r.ProcessBlock(in, outR, 1)
 	}

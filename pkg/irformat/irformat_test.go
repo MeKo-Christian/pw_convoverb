@@ -1,6 +1,7 @@
 package irformat
 
 import (
+	"errors"
 	"io"
 	"math"
 	"testing"
@@ -24,8 +25,10 @@ func (m *memFile) Write(p []byte) (n int, err error) {
 		copy(newData, m.data)
 		m.data = newData
 	}
+
 	copy(m.data[m.pos:], p)
 	m.pos += int64(len(p))
+
 	return len(p), nil
 }
 
@@ -33,13 +36,16 @@ func (m *memFile) Read(p []byte) (n int, err error) {
 	if m.pos >= int64(len(m.data)) {
 		return 0, io.EOF
 	}
+
 	n = copy(p, m.data[m.pos:])
 	m.pos += int64(n)
+
 	return n, nil
 }
 
 func (m *memFile) Seek(offset int64, whence int) (int64, error) {
 	var newPos int64
+
 	switch whence {
 	case io.SeekStart:
 		newPos = offset
@@ -48,10 +54,13 @@ func (m *memFile) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekEnd:
 		newPos = int64(len(m.data)) + offset
 	}
+
 	if newPos < 0 {
 		return 0, io.EOF
 	}
+
 	m.pos = newPos
+
 	return m.pos, nil
 }
 
@@ -84,15 +93,18 @@ func TestWriteReadSingleIR(t *testing.T) {
 	if err := writer.WriteHeader(1); err != nil {
 		t.Fatalf("WriteHeader failed: %v", err)
 	}
+
 	if err := writer.WriteIR(ir); err != nil {
 		t.Fatalf("WriteIR failed: %v", err)
 	}
+
 	if err := writer.Close(); err != nil {
 		t.Fatalf("Close failed: %v", err)
 	}
 
 	// Read back
 	buf.Seek(0, io.SeekStart)
+
 	reader, err := NewReader(buf)
 	if err != nil {
 		t.Fatalf("NewReader failed: %v", err)
@@ -111,21 +123,27 @@ func TestWriteReadSingleIR(t *testing.T) {
 	if loadedIR.Metadata.Name != ir.Metadata.Name {
 		t.Errorf("name mismatch: got %q, want %q", loadedIR.Metadata.Name, ir.Metadata.Name)
 	}
+
 	if loadedIR.Metadata.Description != ir.Metadata.Description {
 		t.Errorf("description mismatch: got %q, want %q", loadedIR.Metadata.Description, ir.Metadata.Description)
 	}
+
 	if loadedIR.Metadata.Category != ir.Metadata.Category {
 		t.Errorf("category mismatch: got %q, want %q", loadedIR.Metadata.Category, ir.Metadata.Category)
 	}
+
 	if loadedIR.Metadata.SampleRate != ir.Metadata.SampleRate {
 		t.Errorf("sample rate mismatch: got %v, want %v", loadedIR.Metadata.SampleRate, ir.Metadata.SampleRate)
 	}
+
 	if loadedIR.Metadata.Channels != ir.Metadata.Channels {
 		t.Errorf("channels mismatch: got %d, want %d", loadedIR.Metadata.Channels, ir.Metadata.Channels)
 	}
+
 	if loadedIR.Metadata.Length != ir.Metadata.Length {
 		t.Errorf("length mismatch: got %d, want %d", loadedIR.Metadata.Length, ir.Metadata.Length)
 	}
+
 	if len(loadedIR.Metadata.Tags) != len(ir.Metadata.Tags) {
 		t.Errorf("tags count mismatch: got %d, want %d", len(loadedIR.Metadata.Tags), len(ir.Metadata.Tags))
 	}
@@ -182,6 +200,7 @@ func TestWriteReadMultipleIRs(t *testing.T) {
 
 	// Read back
 	buf.Seek(0, io.SeekStart)
+
 	loadedLib, err := ReadLibrary(buf)
 	if err != nil {
 		t.Fatalf("ReadLibrary failed: %v", err)
@@ -196,12 +215,15 @@ func TestWriteReadMultipleIRs(t *testing.T) {
 		if loadedIR.Metadata.Name != ir.Metadata.Name {
 			t.Errorf("IR %d name mismatch: got %q, want %q", i, loadedIR.Metadata.Name, ir.Metadata.Name)
 		}
+
 		if loadedIR.Metadata.Category != ir.Metadata.Category {
 			t.Errorf("IR %d category mismatch: got %q, want %q", i, loadedIR.Metadata.Category, ir.Metadata.Category)
 		}
+
 		if loadedIR.Metadata.Channels != ir.Metadata.Channels {
 			t.Errorf("IR %d channels mismatch: got %d, want %d", i, loadedIR.Metadata.Channels, ir.Metadata.Channels)
 		}
+
 		verifyAudioData(t, ir.Audio.Data, loadedIR.Audio.Data)
 	}
 }
@@ -236,6 +258,7 @@ func TestListIRs(t *testing.T) {
 	}
 
 	buf.Seek(0, io.SeekStart)
+
 	reader, err := NewReader(buf)
 	if err != nil {
 		t.Fatalf("NewReader failed: %v", err)
@@ -249,9 +272,11 @@ func TestListIRs(t *testing.T) {
 	if entries[0].Name != "Hall A" {
 		t.Errorf("entry 0 name: got %q, want %q", entries[0].Name, "Hall A")
 	}
+
 	if entries[0].Category != "Hall" {
 		t.Errorf("entry 0 category: got %q, want %q", entries[0].Category, "Hall")
 	}
+
 	if entries[0].Channels != 2 {
 		t.Errorf("entry 0 channels: got %d, want %d", entries[0].Channels, 2)
 	}
@@ -283,6 +308,7 @@ func TestLoadIRByName(t *testing.T) {
 	}
 
 	buf.Seek(0, io.SeekStart)
+
 	reader, err := NewReader(buf)
 	if err != nil {
 		t.Fatalf("NewReader failed: %v", err)
@@ -293,16 +319,18 @@ func TestLoadIRByName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadIRByName failed: %v", err)
 	}
+
 	if ir.Metadata.Name != "Second" {
 		t.Errorf("got name %q, want %q", ir.Metadata.Name, "Second")
 	}
+
 	if ir.Metadata.Length != 20 {
 		t.Errorf("got length %d, want %d", ir.Metadata.Length, 20)
 	}
 
 	// Test not found
 	_, err = reader.LoadIRByName("NonExistent")
-	if err != ErrIRNotFound {
+	if !errors.Is(err, ErrIRNotFound) {
 		t.Errorf("expected ErrIRNotFound, got %v", err)
 	}
 }
@@ -312,8 +340,9 @@ func TestInvalidMagic(t *testing.T) {
 	buf := newMemFile()
 	buf.Write([]byte("XXXX")) // Invalid magic
 	buf.Seek(0, io.SeekStart)
+
 	_, err := NewReader(buf)
-	if err != ErrInvalidMagic {
+	if !errors.Is(err, ErrInvalidMagic) {
 		t.Errorf("expected ErrInvalidMagic, got %v", err)
 	}
 }
@@ -332,18 +361,19 @@ func TestInvalidIndex(t *testing.T) {
 	}
 
 	buf.Seek(0, io.SeekStart)
+
 	reader, err := NewReader(buf)
 	if err != nil {
 		t.Fatalf("NewReader failed: %v", err)
 	}
 
 	_, err = reader.LoadIR(-1)
-	if err != ErrInvalidIndex {
+	if !errors.Is(err, ErrInvalidIndex) {
 		t.Errorf("expected ErrInvalidIndex for -1, got %v", err)
 	}
 
 	_, err = reader.LoadIR(1)
-	if err != ErrInvalidIndex {
+	if !errors.Is(err, ErrInvalidIndex) {
 		t.Errorf("expected ErrInvalidIndex for 1, got %v", err)
 	}
 }
@@ -369,6 +399,7 @@ func TestEmptyStrings(t *testing.T) {
 	}
 
 	buf.Seek(0, io.SeekStart)
+
 	loadedLib, err := ReadLibrary(buf)
 	if err != nil {
 		t.Fatalf("ReadLibrary failed: %v", err)
@@ -378,9 +409,11 @@ func TestEmptyStrings(t *testing.T) {
 	if loadedIR.Metadata.Name != "" {
 		t.Errorf("expected empty name, got %q", loadedIR.Metadata.Name)
 	}
+
 	if loadedIR.Metadata.Description != "" {
 		t.Errorf("expected empty description, got %q", loadedIR.Metadata.Description)
 	}
+
 	if len(loadedIR.Metadata.Tags) != 0 {
 		t.Errorf("expected empty tags, got %v", loadedIR.Metadata.Tags)
 	}
@@ -421,11 +454,12 @@ func TestIndexEntryDuration(t *testing.T) {
 // generateTestSamples generates test audio samples (sine wave + noise).
 func generateTestSamples(n int) []float32 {
 	samples := make([]float32, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		// Simple exponential decay (typical IR shape)
 		t := float64(i) / float64(n)
 		samples[i] = float32(math.Exp(-5*t) * math.Sin(2*math.Pi*1000*t/48000))
 	}
+
 	return samples
 }
 
@@ -438,19 +472,20 @@ func verifyAudioData(t *testing.T, original, loaded [][]float32) {
 		return
 	}
 
-	for ch := 0; ch < len(original); ch++ {
+	for ch := range len(original) {
 		if len(original[ch]) != len(loaded[ch]) {
 			t.Errorf("channel %d length mismatch: got %d, want %d", ch, len(loaded[ch]), len(original[ch]))
 			continue
 		}
 
-		for i := 0; i < len(original[ch]); i++ {
+		for i := range len(original[ch]) {
 			orig := original[ch][i]
 			load := loaded[ch][i]
 
 			// F16 has ~0.1% relative error for normal values
 			// Use absolute error for values near zero
 			absErr := math.Abs(float64(orig - load))
+
 			relErr := float64(0)
 			if math.Abs(float64(orig)) > 1e-6 {
 				relErr = absErr / math.Abs(float64(orig))

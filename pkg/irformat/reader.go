@@ -23,11 +23,13 @@ type Reader struct {
 func NewReader(r io.ReadSeeker) (*Reader, error) {
 	reader := &Reader{r: r}
 
-	if err := reader.readHeader(); err != nil {
+	err := reader.readHeader()
+	if err != nil {
 		return nil, err
 	}
 
-	if err := reader.readIndex(); err != nil {
+	err = reader.readIndex()
+	if err != nil {
 		return nil, err
 	}
 
@@ -39,28 +41,33 @@ func (r *Reader) readHeader() error {
 	// Read magic number
 	magic := make([]byte, 4)
 	if _, err := io.ReadFull(r.r, magic); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	if string(magic) != MagicNumber {
 		return ErrInvalidMagic
 	}
 
 	// Read version
-	if err := binary.Read(r.r, binary.LittleEndian, &r.version); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+	err := binary.Read(r.r, binary.LittleEndian, &r.version)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	if r.version != CurrentVersion {
 		return fmt.Errorf("%w: got version %d, expected %d", ErrUnsupportedVersion, r.version, CurrentVersion)
 	}
 
 	// Read IR count
-	if err := binary.Read(r.r, binary.LittleEndian, &r.irCount); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+	err = binary.Read(r.r, binary.LittleEndian, &r.irCount)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	// Read index offset
-	if err := binary.Read(r.r, binary.LittleEndian, &r.indexOffset); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+	err = binary.Read(r.r, binary.LittleEndian, &r.indexOffset)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	return nil
@@ -70,30 +77,33 @@ func (r *Reader) readHeader() error {
 func (r *Reader) readIndex() error {
 	// Seek to index
 	if _, err := r.r.Seek(int64(r.indexOffset), io.SeekStart); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	// Read index chunk header
 	chunkID := make([]byte, 4)
 	if _, err := io.ReadFull(r.r, chunkID); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	if string(chunkID) != ChunkTypeIndex {
 		return fmt.Errorf("%w: expected index chunk, got %q", ErrInvalidChunk, string(chunkID))
 	}
 
 	var chunkSize uint64
-	if err := binary.Read(r.r, binary.LittleEndian, &chunkSize); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+	err := binary.Read(r.r, binary.LittleEndian, &chunkSize)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	// Read index entries
 	r.index = make([]IndexEntry, 0, r.irCount)
-	for i := uint32(0); i < r.irCount; i++ {
+	for range uint32(r.irCount) {
 		entry, err := r.readIndexEntry()
 		if err != nil {
 			return err
 		}
+
 		r.index = append(r.index, entry)
 	}
 
@@ -106,28 +116,31 @@ func (r *Reader) readIndexEntry() (IndexEntry, error) {
 
 	// Offset
 	if err := binary.Read(r.r, binary.LittleEndian, &entry.Offset); err != nil {
-		return entry, fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return entry, fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	// Sample rate
 	var sampleRateBits uint64
 	if err := binary.Read(r.r, binary.LittleEndian, &sampleRateBits); err != nil {
-		return entry, fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return entry, fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	entry.SampleRate = math.Float64frombits(sampleRateBits)
 
 	// Channels
 	var channels uint32
 	if err := binary.Read(r.r, binary.LittleEndian, &channels); err != nil {
-		return entry, fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return entry, fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	entry.Channels = int(channels)
 
 	// Length
 	var length uint32
 	if err := binary.Read(r.r, binary.LittleEndian, &length); err != nil {
-		return entry, fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return entry, fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	entry.Length = int(length)
 
 	// Name
@@ -135,6 +148,7 @@ func (r *Reader) readIndexEntry() (IndexEntry, error) {
 	if err != nil {
 		return entry, err
 	}
+
 	entry.Name = name
 
 	// Category
@@ -142,6 +156,7 @@ func (r *Reader) readIndexEntry() (IndexEntry, error) {
 	if err != nil {
 		return entry, err
 	}
+
 	entry.Category = category
 
 	return entry, nil
@@ -150,8 +165,9 @@ func (r *Reader) readIndexEntry() (IndexEntry, error) {
 // readString reads a length-prefixed UTF-8 string.
 func (r *Reader) readString() (string, error) {
 	var length uint16
-	if err := binary.Read(r.r, binary.LittleEndian, &length); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrCorruptedData, err)
+	err := binary.Read(r.r, binary.LittleEndian, &length)
+	if err != nil {
+		return "", fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	if length == 0 {
@@ -160,7 +176,7 @@ func (r *Reader) readString() (string, error) {
 
 	data := make([]byte, length)
 	if _, err := io.ReadFull(r.r, data); err != nil {
-		return "", fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return "", fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	return string(data), nil
@@ -181,6 +197,7 @@ func (r *Reader) IRCount() int {
 func (r *Reader) ListIRs() []IndexEntry {
 	result := make([]IndexEntry, len(r.index))
 	copy(result, r.index)
+
 	return result
 }
 
@@ -194,7 +211,7 @@ func (r *Reader) LoadIR(index int) (*ImpulseResponse, error) {
 
 	// Seek to IR chunk
 	if _, err := r.r.Seek(int64(entry.Offset), io.SeekStart); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return nil, fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	return r.readIRChunk()
@@ -208,6 +225,7 @@ func (r *Reader) LoadIRByName(name string) (*ImpulseResponse, error) {
 			return r.LoadIR(i)
 		}
 	}
+
 	return nil, ErrIRNotFound
 }
 
@@ -216,26 +234,30 @@ func (r *Reader) readIRChunk() (*ImpulseResponse, error) {
 	// Read IR chunk header
 	chunkID := make([]byte, 4)
 	if _, err := io.ReadFull(r.r, chunkID); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return nil, fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	if string(chunkID) != ChunkTypeIR {
 		return nil, fmt.Errorf("%w: expected IR chunk, got %q", ErrInvalidChunk, string(chunkID))
 	}
 
 	var chunkSize uint64
-	if err := binary.Read(r.r, binary.LittleEndian, &chunkSize); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrCorruptedData, err)
+	err := binary.Read(r.r, binary.LittleEndian, &chunkSize)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	ir := &ImpulseResponse{}
 
 	// Read metadata sub-chunk
-	if err := r.readMetadataSubChunk(&ir.Metadata); err != nil {
+	err = r.readMetadataSubChunk(&ir.Metadata)
+	if err != nil {
 		return nil, err
 	}
 
 	// Read audio sub-chunk
-	if err := r.readAudioSubChunk(&ir.Audio, ir.Metadata.Channels, ir.Metadata.Length); err != nil {
+	err = r.readAudioSubChunk(&ir.Audio, ir.Metadata.Channels, ir.Metadata.Length)
+	if err != nil {
 		return nil, err
 	}
 
@@ -247,36 +269,40 @@ func (r *Reader) readMetadataSubChunk(meta *IRMetadata) error {
 	// Read sub-chunk header
 	chunkID := make([]byte, 4)
 	if _, err := io.ReadFull(r.r, chunkID); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	if string(chunkID) != ChunkTypeMeta {
 		return fmt.Errorf("%w: expected metadata sub-chunk, got %q", ErrInvalidChunk, string(chunkID))
 	}
 
 	var subChunkSize uint32
 	if err := binary.Read(r.r, binary.LittleEndian, &subChunkSize); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	// Sample rate
 	var sampleRateBits uint64
 	if err := binary.Read(r.r, binary.LittleEndian, &sampleRateBits); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	meta.SampleRate = math.Float64frombits(sampleRateBits)
 
 	// Channels
 	var channels uint32
 	if err := binary.Read(r.r, binary.LittleEndian, &channels); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	meta.Channels = int(channels)
 
 	// Length
 	var length uint32
 	if err := binary.Read(r.r, binary.LittleEndian, &length); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	meta.Length = int(length)
 
 	// Name
@@ -284,6 +310,7 @@ func (r *Reader) readMetadataSubChunk(meta *IRMetadata) error {
 	if err != nil {
 		return err
 	}
+
 	meta.Name = name
 
 	// Description
@@ -291,6 +318,7 @@ func (r *Reader) readMetadataSubChunk(meta *IRMetadata) error {
 	if err != nil {
 		return err
 	}
+
 	meta.Description = description
 
 	// Category
@@ -298,20 +326,22 @@ func (r *Reader) readMetadataSubChunk(meta *IRMetadata) error {
 	if err != nil {
 		return err
 	}
+
 	meta.Category = category
 
 	// Tags
 	var tagCount uint16
 	if err := binary.Read(r.r, binary.LittleEndian, &tagCount); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	meta.Tags = make([]string, tagCount)
-	for i := uint16(0); i < tagCount; i++ {
+	for i := range tagCount {
 		tag, err := r.readString()
 		if err != nil {
 			return err
 		}
+
 		meta.Tags[i] = tag
 	}
 
@@ -323,21 +353,23 @@ func (r *Reader) readAudioSubChunk(audio *AudioData, channels, length int) error
 	// Read sub-chunk header
 	chunkID := make([]byte, 4)
 	if _, err := io.ReadFull(r.r, chunkID); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
+
 	if string(chunkID) != ChunkTypeAudio {
 		return fmt.Errorf("%w: expected audio sub-chunk, got %q", ErrInvalidChunk, string(chunkID))
 	}
 
 	var subChunkSize uint32
-	if err := binary.Read(r.r, binary.LittleEndian, &subChunkSize); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+	err := binary.Read(r.r, binary.LittleEndian, &subChunkSize)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	// Read f16 data
 	f16Data := make([]byte, subChunkSize)
 	if _, err := io.ReadFull(r.r, f16Data); err != nil {
-		return fmt.Errorf("%w: %v", ErrCorruptedData, err)
+		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
 	}
 
 	// Decode f16 to float32
@@ -363,11 +395,12 @@ func ReadLibrary(r io.ReadSeeker) (*IRLibrary, error) {
 		IRs:     make([]*ImpulseResponse, 0, reader.irCount),
 	}
 
-	for i := 0; i < int(reader.irCount); i++ {
-		ir, err := reader.LoadIR(i)
+	for i := range reader.irCount {
+		ir, err := reader.LoadIR(int(i))
 		if err != nil {
 			return nil, fmt.Errorf("failed to load IR %d: %w", i, err)
 		}
+
 		lib.IRs = append(lib.IRs, ir)
 	}
 

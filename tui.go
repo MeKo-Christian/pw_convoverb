@@ -170,6 +170,7 @@ func handleIRBrowseKey(ev termbox.Event, s *TUIState) {
 				s.currentIRName = name
 			}
 		}
+
 		s.irBrowseMode = false
 	case termbox.KeyArrowUp:
 		s.irBrowseIdx--
@@ -214,6 +215,7 @@ func draw(state *TUIState) {
 	if irDisplayName == "" {
 		irDisplayName = "(none)"
 	}
+
 	if len(irDisplayName) > 30 {
 		irDisplayName = irDisplayName[:27] + "..."
 	}
@@ -253,6 +255,7 @@ func draw(state *TUIState) {
 		if l <= 1e-9 {
 			return -96.0
 		}
+
 		return 20 * math.Log10(float64(l))
 	}
 
@@ -290,6 +293,7 @@ func drawIRBrowser(state *TUIState) {
 
 	// Calculate visible range
 	listStartY := 5
+
 	listHeight := h - listStartY - 2
 	if listHeight < 5 {
 		listHeight = 5
@@ -331,6 +335,7 @@ func drawIRBrowser(state *TUIState) {
 		}
 
 		name := entry.Name
+
 		maxNameLen := 25
 		if len(name) > maxNameLen {
 			name = name[:maxNameLen-3] + "..."

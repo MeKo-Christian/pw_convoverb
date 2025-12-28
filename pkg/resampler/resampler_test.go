@@ -7,10 +7,12 @@ import (
 
 func TestResample_EmptyInput(t *testing.T) {
 	r := New()
+
 	result, err := r.Resample([]float32{}, 48000, 44100)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if len(result) != 0 {
 		t.Errorf("expected empty result, got %d samples", len(result))
 	}
@@ -40,6 +42,7 @@ func TestResample_Downsample2x(t *testing.T) {
 	r := New()
 	// Create a longer input for meaningful downsampling
 	inputLen := 1024
+
 	input := make([]float32, inputLen)
 	for i := range input {
 		input[i] = float32(math.Sin(2 * math.Pi * float64(i) / float64(inputLen)))
@@ -59,6 +62,7 @@ func TestResample_Downsample2x(t *testing.T) {
 func TestResample_Upsample2x(t *testing.T) {
 	r := New()
 	inputLen := 512
+
 	input := make([]float32, inputLen)
 	for i := range input {
 		input[i] = float32(math.Sin(2 * math.Pi * float64(i) / float64(inputLen)))
@@ -79,6 +83,7 @@ func TestResample_ArbitraryRatio_88200_to_48000(t *testing.T) {
 	r := New()
 	// This is the actual use case: 88.2kHz IR to 48kHz playback
 	inputLen := 4096
+
 	input := make([]float32, inputLen)
 	for i := range input {
 		input[i] = float32(math.Sin(2 * math.Pi * float64(i) / float64(inputLen)))
@@ -127,6 +132,7 @@ func TestResample_PreservesLowFrequencyContent(t *testing.T) {
 	if tolerance < 2 {
 		tolerance = 2
 	}
+
 	if abs(actualCrossings-expectedCrossings) > tolerance {
 		t.Errorf("expected ~%d zero crossings, got %d", expectedCrossings, actualCrossings)
 	}
@@ -137,6 +143,7 @@ func TestResample_EnergyPreservation(t *testing.T) {
 
 	// Create a test signal
 	inputLen := 2048
+
 	input := make([]float32, inputLen)
 	for i := range input {
 		input[i] = float32(math.Sin(2*math.Pi*float64(i)/float64(inputLen))) * 0.5
@@ -167,6 +174,7 @@ func TestResampleMultiChannel(t *testing.T) {
 
 	// Create stereo input
 	inputLen := 512
+
 	input := make([][]float32, 2)
 	for ch := range input {
 		input[ch] = make([]float32, inputLen)
@@ -196,10 +204,12 @@ func TestResampleMultiChannel(t *testing.T) {
 
 func TestResampleMultiChannel_Empty(t *testing.T) {
 	r := New()
+
 	result, err := r.ResampleMultiChannel([][]float32{}, 48000, 44100)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+
 	if len(result) != 0 {
 		t.Errorf("expected empty result, got %d channels", len(result))
 	}
@@ -235,6 +245,7 @@ func abs(x int) int {
 	if x < 0 {
 		return -x
 	}
+
 	return x
 }
 
@@ -242,12 +253,15 @@ func countZeroCrossings(data []float32) int {
 	if len(data) < 2 {
 		return 0
 	}
+
 	crossings := 0
+
 	for i := 1; i < len(data); i++ {
 		if (data[i-1] >= 0 && data[i] < 0) || (data[i-1] < 0 && data[i] >= 0) {
 			crossings++
 		}
 	}
+
 	return crossings
 }
 
@@ -255,9 +269,11 @@ func calculateRMS(data []float32) float64 {
 	if len(data) == 0 {
 		return 0
 	}
+
 	var sum float64
 	for _, v := range data {
 		sum += float64(v) * float64(v)
 	}
+
 	return math.Sqrt(sum / float64(len(data)))
 }

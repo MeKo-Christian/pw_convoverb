@@ -31,8 +31,8 @@ func TestIntegrationReverbProcessing(t *testing.T) {
 	const blockSize = 128
 	testSignal := make([]float32, blockSize*channels)
 
-	for i := 0; i < blockSize; i++ {
-		for ch := 0; ch < channels; ch++ {
+	for i := range blockSize {
+		for ch := range channels {
 			testSignal[i*channels+ch] = 0.5
 		}
 	}
@@ -42,6 +42,7 @@ func TestIntegrationReverbProcessing(t *testing.T) {
 
 	// Verify output is not all zeros
 	allZeros := true
+
 	for _, sample := range testSignal {
 		if sample != 0.0 {
 			allZeros = false
@@ -66,7 +67,7 @@ func TestIntegrationStereoIndependence(t *testing.T) {
 	testSignal := make([]float32, blockSize*channels)
 
 	// Set different signals for each channel
-	for i := 0; i < blockSize; i++ {
+	for i := range blockSize {
 		testSignal[i*channels+0] = 0.8 // Left channel
 		testSignal[i*channels+1] = 0.2 // Right channel
 	}
@@ -78,7 +79,7 @@ func TestIntegrationStereoIndependence(t *testing.T) {
 	leftSum := float32(0.0)
 	rightSum := float32(0.0)
 
-	for i := 0; i < blockSize; i++ {
+	for i := range blockSize {
 		leftSum += testSignal[i*channels+0]
 		rightSum += testSignal[i*channels+1]
 	}
@@ -104,7 +105,8 @@ func BenchmarkIntegrationProcessing(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		processAudioBuffer(testSignal)
 	}
 }

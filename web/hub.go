@@ -43,14 +43,17 @@ func (h *Hub) Run() {
 
 		case client := <-h.unregister:
 			h.mu.Lock()
+
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
 			}
+
 			h.mu.Unlock()
 
 		case message := <-h.broadcast:
 			h.mu.RLock()
+
 			for client := range h.clients {
 				select {
 				case client.send <- message:
@@ -61,6 +64,7 @@ func (h *Hub) Run() {
 					}(client)
 				}
 			}
+
 			h.mu.RUnlock()
 		}
 	}
@@ -79,6 +83,7 @@ func (h *Hub) Broadcast(message []byte) {
 func (h *Hub) ClientCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
+
 	return len(h.clients)
 }
 
@@ -89,7 +94,8 @@ func (c *Client) writePump() {
 	}()
 
 	for message := range c.send {
-		if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
+		err := c.conn.WriteMessage(websocket.TextMessage, message)
+		if err != nil {
 			return
 		}
 	}
@@ -99,6 +105,7 @@ func (c *Client) writePump() {
 func (c *Client) readPump(onMessage func([]byte)) {
 	defer func() {
 		c.hub.unregister <- c
+
 		c.conn.Close()
 	}()
 
@@ -107,6 +114,7 @@ func (c *Client) readPump(onMessage func([]byte)) {
 		if err != nil {
 			return
 		}
+
 		if onMessage != nil {
 			onMessage(message)
 		}

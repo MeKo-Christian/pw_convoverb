@@ -1,6 +1,7 @@
 package dsp
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -54,11 +55,13 @@ func NewLowLatencyConvolutionEngine(ir []float32, minBlockOrder, maxBlockOrder i
 	if minBlockOrder < 6 || minBlockOrder > 12 {
 		return nil, fmt.Errorf("minBlockOrder must be between 6 and 12, got %d", minBlockOrder)
 	}
+
 	if maxBlockOrder < minBlockOrder {
 		return nil, fmt.Errorf("maxBlockOrder (%d) must be >= minBlockOrder (%d)", maxBlockOrder, minBlockOrder)
 	}
+
 	if len(ir) == 0 {
-		return nil, fmt.Errorf("impulse response cannot be empty")
+		return nil, errors.New("impulse response cannot be empty")
 	}
 
 	e := &LowLatencyConvolutionEngine{
@@ -110,25 +113,29 @@ func (e *LowLatencyConvolutionEngine) calculatePaddedIRSize() int {
 	minBlockSize := 1 << e.minBlockOrder
 	// Round up to multiple of minimum block size
 	padded := ((e.irSize + minBlockSize - 1) / minBlockSize) * minBlockSize
+
 	return padded
 }
 
 // bitCountToBits returns (2^(bitCount+1)) - 1
-// For bitCount=6: returns 127 (2^7 - 1)
+// For bitCount=6: returns 127 (2^7 - 1).
 func bitCountToBits(bitCount int) int {
 	return (2 << bitCount) - 1
 }
 
-// truncLog2 returns floor(log2(n))
+// truncLog2 returns floor(log2(n)).
 func truncLog2(n int) int {
 	if n <= 0 {
 		return 0
 	}
+
 	result := 0
+
 	for n > 1 {
 		n >>= 1
 		result++
 	}
+
 	return result
 }
 
@@ -139,7 +146,7 @@ func truncLog2(n int) int {
 // 1. Calculate the maximum FFT order needed based on IR size
 // 2. Allocate at least one block per FFT size from minBlockOrder to maxIROrder
 // 3. Distribute remaining IR across stages using bit manipulation
-// 4. Create stages with logarithmically increasing sizes
+// 4. Create stages with logarithmically increasing sizes.
 func (e *LowLatencyConvolutionEngine) partitionIR() error {
 	// Clear existing stages
 	e.stages = nil
@@ -176,6 +183,7 @@ func (e *LowLatencyConvolutionEngine) partitionIR() error {
 
 	// Create stages from minBlockOrder to maxIROrd-1
 	startPos := 0
+
 	for order := e.minBlockOrder; order < maxIROrd; order++ {
 		// Count blocks at this order: 1 mandatory + any from residual
 		count := 1 + ((resIRSize & (1 << order)) >> order)
@@ -184,6 +192,7 @@ func (e *LowLatencyConvolutionEngine) partitionIR() error {
 		if err != nil {
 			return fmt.Errorf("failed to create stage for order %d: %w", order, err)
 		}
+
 		e.stages[order-e.minBlockOrder] = stage
 
 		startPos += count * (1 << order)
@@ -192,10 +201,12 @@ func (e *LowLatencyConvolutionEngine) partitionIR() error {
 
 	// Last stage (highest order)
 	count := 1 + (resIRSize / (1 << maxIROrd))
+
 	stage, err := NewConvolutionStage(maxIROrd, startPos, e.latency, count)
 	if err != nil {
 		return fmt.Errorf("failed to create final stage for order %d: %w", maxIROrd, err)
 	}
+
 	e.stages[len(e.stages)-1] = stage
 
 	// Update input buffer size to accommodate largest FFT
@@ -261,6 +272,7 @@ func (e *LowLatencyConvolutionEngine) ProcessBlock(input, output []float32) erro
 
 			// Increase block position
 			e.blockPosition += remaining
+
 			break
 		} else {
 			// Have enough samples to complete a latency block
@@ -372,6 +384,8 @@ func (e *LowLatencyConvolutionEngine) StageInfo(index int) (fftSize, blockCount 
 	if index < 0 || index >= len(e.stages) {
 		return 0, 0, fmt.Errorf("stage index %d out of range [0, %d)", index, len(e.stages))
 	}
+
 	stage := e.stages[index]
+
 	return stage.FFTSize(), stage.Count(), nil
 }

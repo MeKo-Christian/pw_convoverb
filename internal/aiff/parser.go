@@ -17,7 +17,7 @@ import (
 	"math"
 )
 
-// Errors
+// Errors.
 var (
 	ErrNotAIFF           = errors.New("aiff: not an AIFF file")
 	ErrUnsupportedFormat = errors.New("aiff: unsupported format")
@@ -44,7 +44,7 @@ func Parse(r io.Reader) (*File, error) {
 	// Read FORM chunk header
 	var formHeader [12]byte
 	if _, err := io.ReadFull(r, formHeader[:]); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidFile, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidFile, err)
 	}
 
 	// Verify FORM signature
@@ -74,7 +74,8 @@ func Parse(r io.Reader) (*File, error) {
 			if err == io.EOF {
 				break
 			}
-			return nil, fmt.Errorf("%w: %v", ErrInvalidFile, err)
+
+			return nil, fmt.Errorf("%w: %w", ErrInvalidFile, err)
 		}
 
 		chunkID := string(chunkHeader[0:4])
@@ -88,9 +89,11 @@ func Parse(r io.Reader) (*File, error) {
 
 		switch chunkID {
 		case "COMM":
-			if err := file.parseCOMM(r, chunkSize, formType); err != nil {
+			err := file.parseCOMM(r, chunkSize, formType)
+			if err != nil {
 				return nil, err
 			}
+
 			commFound = true
 
 			// Handle padding
@@ -100,10 +103,12 @@ func Parse(r io.Reader) (*File, error) {
 
 		case "SSND":
 			var err error
+
 			ssndData, err = file.parseSSND(r, chunkSize)
 			if err != nil {
 				return nil, err
 			}
+
 			ssndFound = true
 
 			// Handle padding
@@ -114,10 +119,11 @@ func Parse(r io.Reader) (*File, error) {
 		default:
 			// Skip unknown chunks
 			if _, err := io.CopyN(io.Discard, r, int64(paddedSize)); err != nil {
-				if err == io.EOF {
+				if errors.Is(err, io.EOF) {
 					break
 				}
-				return nil, fmt.Errorf("%w: failed to skip chunk %s: %v", ErrInvalidFile, chunkID, err)
+
+				return nil, fmt.Errorf("%w: failed to skip chunk %s: %w", ErrInvalidFile, chunkID, err)
 			}
 		}
 	}
@@ -125,12 +131,14 @@ func Parse(r io.Reader) (*File, error) {
 	if !commFound {
 		return nil, fmt.Errorf("%w: COMM chunk", ErrMissingChunk)
 	}
+
 	if !ssndFound {
 		return nil, fmt.Errorf("%w: SSND chunk", ErrMissingChunk)
 	}
 
 	// Decode audio data
-	if err := file.decodeAudio(ssndData); err != nil {
+	err := file.decodeAudio(ssndData)
+	if err != nil {
 		return nil, err
 	}
 
@@ -147,7 +155,7 @@ func (f *File) parseCOMM(r io.Reader, size uint32, formType string) error {
 
 	var comm [18]byte
 	if _, err := io.ReadFull(r, comm[:]); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidFile, err)
+		return fmt.Errorf("%w: %w", ErrInvalidFile, err)
 	}
 
 	f.NumChannels = int(binary.BigEndian.Uint16(comm[0:2]))
@@ -159,9 +167,11 @@ func (f *File) parseCOMM(r io.Reader, size uint32, formType string) error {
 	if f.NumChannels < 1 || f.NumChannels > 8 {
 		return fmt.Errorf("%w: unsupported channel count %d", ErrUnsupportedFormat, f.NumChannels)
 	}
+
 	if f.BitsPerSample != 8 && f.BitsPerSample != 16 && f.BitsPerSample != 24 && f.BitsPerSample != 32 {
 		return fmt.Errorf("%w: unsupported bit depth %d", ErrUnsupportedFormat, f.BitsPerSample)
 	}
+
 	if f.SampleRate <= 0 || f.SampleRate > 384000 {
 		return fmt.Errorf("%w: invalid sample rate %v", ErrUnsupportedFormat, f.SampleRate)
 	}
@@ -169,9 +179,10 @@ func (f *File) parseCOMM(r io.Reader, size uint32, formType string) error {
 	// Handle AIFC compression type
 	if formType == "AIFC" && size > 18 {
 		remaining := size - 18
+
 		comprData := make([]byte, remaining)
 		if _, err := io.ReadFull(r, comprData); err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidFile, err)
+			return fmt.Errorf("%w: %w", ErrInvalidFile, err)
 		}
 
 		if len(comprData) >= 4 {
@@ -198,7 +209,7 @@ func (f *File) parseSSND(r io.Reader, size uint32) ([]byte, error) {
 	// Read offset and block size
 	var header [8]byte
 	if _, err := io.ReadFull(r, header[:]); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidFile, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidFile, err)
 	}
 
 	offset := binary.BigEndian.Uint32(header[0:4])
@@ -207,15 +218,16 @@ func (f *File) parseSSND(r io.Reader, size uint32) ([]byte, error) {
 	// Skip offset bytes if present
 	if offset > 0 {
 		if _, err := io.CopyN(io.Discard, r, int64(offset)); err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidFile, err)
+			return nil, fmt.Errorf("%w: %w", ErrInvalidFile, err)
 		}
 	}
 
 	// Read audio data
 	dataSize := size - 8 - offset
+
 	data := make([]byte, dataSize)
 	if _, err := io.ReadFull(r, data); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidFile, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidFile, err)
 	}
 
 	return data, nil
@@ -240,8 +252,9 @@ func (f *File) decodeAudio(data []byte) error {
 
 	// Decode frames
 	offset := 0
-	for frame := 0; frame < f.NumSamples; frame++ {
-		for ch := 0; ch < f.NumChannels; ch++ {
+
+	for frame := range f.NumSamples {
+		for ch := range f.NumChannels {
 			var sample float32
 
 			switch f.BitsPerSample {
@@ -268,6 +281,7 @@ func (f *File) decodeAudio(data []byte) error {
 				} else {
 					s = int32(b0)<<16 | int32(b1)<<8 | int32(b2)
 				}
+
 				sample = float32(s) / 8388608.0
 				offset += 3
 
@@ -307,6 +321,7 @@ func extendedToFloat64(b []byte) float64 {
 		// Denormalized number - not common for sample rates
 		return 0
 	}
+
 	if exponent == 0x7FFF {
 		// Infinity or NaN
 		return math.Inf(1)
@@ -330,5 +345,6 @@ func (f *File) Duration() float64 {
 	if f.SampleRate <= 0 {
 		return 0
 	}
+
 	return float64(f.NumSamples) / f.SampleRate
 }

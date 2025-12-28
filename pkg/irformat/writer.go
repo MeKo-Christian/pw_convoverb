@@ -39,21 +39,25 @@ func (w *Writer) WriteHeader(irCount int) error {
 	}
 
 	// Write version
-	if err := binary.Write(w.w, binary.LittleEndian, CurrentVersion); err != nil {
+	err := binary.Write(w.w, binary.LittleEndian, CurrentVersion)
+	if err != nil {
 		return err
 	}
 
 	// Write IR count
-	if err := binary.Write(w.w, binary.LittleEndian, w.irCount); err != nil {
+	err = binary.Write(w.w, binary.LittleEndian, w.irCount)
+	if err != nil {
 		return err
 	}
 
 	// Write placeholder for index offset (will be updated in Close)
-	if err := binary.Write(w.w, binary.LittleEndian, uint64(0)); err != nil {
+	err = binary.Write(w.w, binary.LittleEndian, uint64(0))
+	if err != nil {
 		return err
 	}
 
 	w.currentPos = FileHeaderSize
+
 	return nil
 }
 
@@ -77,7 +81,8 @@ func (w *Writer) WriteIR(ir *ImpulseResponse) error {
 	if _, err := w.w.Write([]byte(ChunkTypeIR)); err != nil {
 		return err
 	}
-	if err := binary.Write(w.w, binary.LittleEndian, chunkSize); err != nil {
+	err := binary.Write(w.w, binary.LittleEndian, chunkSize)
+	if err != nil {
 		return err
 	}
 
@@ -92,6 +97,7 @@ func (w *Writer) WriteIR(ir *ImpulseResponse) error {
 	}
 
 	w.currentPos += ChunkHeaderSize + chunkSize
+
 	return nil
 }
 
@@ -149,6 +155,7 @@ func (w *Writer) buildMetadataSubChunk(meta *IRMetadata) []byte {
 
 	// Tags
 	binary.LittleEndian.PutUint16(buf[offset:], uint16(len(meta.Tags)))
+
 	offset += 2
 	for _, tag := range meta.Tags {
 		binary.LittleEndian.PutUint16(buf[offset:], uint16(len(tag)))
@@ -192,7 +199,8 @@ func (w *Writer) Close() error {
 	if _, err := w.w.Write([]byte(ChunkTypeIndex)); err != nil {
 		return err
 	}
-	if err := binary.Write(w.w, binary.LittleEndian, uint64(len(indexData))); err != nil {
+	err := binary.Write(w.w, binary.LittleEndian, uint64(len(indexData)))
+	if err != nil {
 		return err
 	}
 
@@ -205,7 +213,8 @@ func (w *Writer) Close() error {
 	if _, err := w.w.Seek(10, io.SeekStart); err != nil { // offset of index_offset field
 		return err
 	}
-	if err := binary.Write(w.w, binary.LittleEndian, indexOffset); err != nil {
+	err = binary.Write(w.w, binary.LittleEndian, indexOffset)
+	if err != nil {
 		return err
 	}
 
@@ -262,12 +271,14 @@ func (w *Writer) buildIndexChunk() []byte {
 func WriteLibrary(w io.WriteSeeker, lib *IRLibrary) error {
 	writer := NewWriter(w)
 
-	if err := writer.WriteHeader(len(lib.IRs)); err != nil {
+	err := writer.WriteHeader(len(lib.IRs))
+	if err != nil {
 		return err
 	}
 
 	for _, ir := range lib.IRs {
-		if err := writer.WriteIR(ir); err != nil {
+		err := writer.WriteIR(ir)
+		if err != nil {
 			return err
 		}
 	}

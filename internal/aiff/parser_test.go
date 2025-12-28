@@ -3,6 +3,7 @@ package aiff
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"math"
 	"os"
 	"path/filepath"
@@ -44,12 +45,15 @@ func TestParseRealFiles(t *testing.T) {
 			if aiff.NumChannels < 1 || aiff.NumChannels > 8 {
 				t.Errorf("Invalid channel count: %d", aiff.NumChannels)
 			}
+
 			if aiff.SampleRate <= 0 || aiff.SampleRate > 384000 {
 				t.Errorf("Invalid sample rate: %v", aiff.SampleRate)
 			}
+
 			if aiff.BitsPerSample != 8 && aiff.BitsPerSample != 16 && aiff.BitsPerSample != 24 && aiff.BitsPerSample != 32 {
 				t.Errorf("Invalid bit depth: %d", aiff.BitsPerSample)
 			}
+
 			if aiff.NumSamples <= 0 {
 				t.Errorf("Invalid sample count: %d", aiff.NumSamples)
 			}
@@ -58,6 +62,7 @@ func TestParseRealFiles(t *testing.T) {
 			if len(aiff.Data) != aiff.NumChannels {
 				t.Errorf("Data channel count mismatch: got %d, want %d", len(aiff.Data), aiff.NumChannels)
 			}
+
 			for ch, data := range aiff.Data {
 				if len(data) != aiff.NumSamples {
 					t.Errorf("Channel %d sample count mismatch: got %d, want %d", ch, len(data), aiff.NumSamples)
@@ -97,9 +102,11 @@ func TestParseSyntheticAIFF(t *testing.T) {
 	if f.SampleRate < 20000 || f.SampleRate > 200000 {
 		t.Errorf("Sample rate out of range: got %v", f.SampleRate)
 	}
+
 	if f.BitsPerSample != 16 {
 		t.Errorf("Bit depth: got %d, want 16", f.BitsPerSample)
 	}
+
 	if f.NumSamples != 1000 {
 		t.Errorf("Samples: got %d, want 1000", f.NumSamples)
 	}
@@ -117,6 +124,7 @@ func TestParseMono(t *testing.T) {
 	if f.NumChannels != 1 {
 		t.Errorf("Channels: got %d, want 1", f.NumChannels)
 	}
+
 	if len(f.Data) != 1 {
 		t.Errorf("Data channels: got %d, want 1", len(f.Data))
 	}
@@ -139,8 +147,9 @@ func TestParse24Bit(t *testing.T) {
 // TestParseInvalidMagic tests that non-AIFF files are rejected.
 func TestParseInvalidMagic(t *testing.T) {
 	data := []byte("RIFF....WAVEfmt ")
+
 	_, err := Parse(bytes.NewReader(data))
-	if err != ErrNotAIFF {
+	if !errors.Is(err, ErrNotAIFF) {
 		t.Errorf("Expected ErrNotAIFF, got %v", err)
 	}
 }
@@ -249,9 +258,10 @@ func createSyntheticAIFF(t *testing.T, channels, sampleRate, bitDepth, numSample
 	binary.Write(&buf, binary.BigEndian, uint32(0)) // blockSize
 
 	// Write audio data (sine wave)
-	for i := 0; i < numSamples; i++ {
+	for i := range numSamples {
 		sample := math.Sin(2 * math.Pi * 440 * float64(i) / float64(sampleRate))
-		for ch := 0; ch < channels; ch++ {
+
+		for range channels {
 			switch bitDepth {
 			case 8:
 				s := int8(sample * 127)

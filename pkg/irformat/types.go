@@ -9,29 +9,29 @@ package irformat
 
 import "errors"
 
-// Format constants
+// Format constants.
 const (
-	// MagicNumber identifies an IRLB file
+	// MagicNumber identifies an IRLB file.
 	MagicNumber = "IRLB"
 
-	// CurrentVersion is the format version implemented by this package
+	// CurrentVersion is the format version implemented by this package.
 	CurrentVersion uint16 = 1
 
-	// Chunk type identifiers
+	// Chunk type identifiers.
 	ChunkTypeIR    = "IR--"
 	ChunkTypeIndex = "INDX"
 	ChunkTypeMeta  = "META"
 	ChunkTypeAudio = "AUDI"
 )
 
-// Header sizes in bytes
+// Header sizes in bytes.
 const (
 	FileHeaderSize     = 18 // Magic(4) + Version(2) + IRCount(4) + IndexOffset(8)
 	ChunkHeaderSize    = 12 // ChunkID(4) + ChunkSize(8)
 	SubChunkHeaderSize = 8  // ChunkID(4) + ChunkSize(4)
 )
 
-// Errors
+// Errors.
 var (
 	ErrInvalidMagic       = errors.New("irformat: invalid magic number")
 	ErrUnsupportedVersion = errors.New("irformat: unsupported format version")
@@ -72,6 +72,7 @@ func NewImpulseResponse(name string, sampleRate float64, channels int, data [][]
 	if len(data) > 0 {
 		length = len(data[0])
 	}
+
 	return &ImpulseResponse{
 		Metadata: IRMetadata{
 			Name:       name,
@@ -90,6 +91,7 @@ func (ir *ImpulseResponse) Duration() float64 {
 	if ir.Metadata.SampleRate <= 0 {
 		return 0
 	}
+
 	return float64(ir.Metadata.Length) / ir.Metadata.SampleRate
 }
 
@@ -127,5 +129,6 @@ func (e *IndexEntry) Duration() float64 {
 	if e.SampleRate <= 0 {
 		return 0
 	}
+
 	return float64(e.Length) / e.SampleRate
 }

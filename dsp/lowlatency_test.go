@@ -98,6 +98,7 @@ func TestNewLowLatencyConvolutionEngine(t *testing.T) {
 				if err == nil {
 					t.Errorf("expected error but got nil")
 				}
+
 				return
 			}
 
@@ -143,6 +144,7 @@ func TestPartitioning(t *testing.T) {
 			t.Errorf("StageInfo(%d) error: %v", i, err)
 			continue
 		}
+
 		t.Logf("Stage %d: FFT size=%d, blocks=%d", i, fftSize, blockCount)
 	}
 
@@ -157,6 +159,7 @@ func TestPartitioning(t *testing.T) {
 func TestImpulseResponse(t *testing.T) {
 	// Create a simple IR: [1, 0.5, 0.25, 0.125, ...]
 	irLen := 256
+
 	ir := make([]float32, irLen)
 	for i := range ir {
 		ir[i] = float32(math.Pow(0.5, float64(i)))
@@ -185,6 +188,7 @@ func TestImpulseResponse(t *testing.T) {
 		if end > inputLen {
 			end = inputLen
 		}
+
 		err := engine.ProcessBlock(input[i:end], output[i:end])
 		if err != nil {
 			t.Fatalf("ProcessBlock failed: %v", err)
@@ -195,8 +199,10 @@ func TestImpulseResponse(t *testing.T) {
 	// Check first few samples of the reproduced IR
 	tolerance := float32(0.01)
 	matched := 0
+
 	for i := 0; i < irLen && i+latency < inputLen; i++ {
 		expected := ir[i]
+
 		actual := output[i+latency]
 		if math.Abs(float64(actual-expected)) < float64(tolerance) {
 			matched++
@@ -212,6 +218,7 @@ func TestImpulseResponse(t *testing.T) {
 
 		// Debug: show first few output samples
 		t.Logf("First 10 output samples (after latency):")
+
 		for i := 0; i < 10 && i+latency < inputLen; i++ {
 			t.Logf("  output[%d] = %.6f, expected IR[%d] = %.6f",
 				i+latency, output[i+latency], i, ir[i])
@@ -243,7 +250,7 @@ func TestProcessBlockVariableSizes(t *testing.T) {
 				output := make([]float32, blockSize)
 
 				// Just verify no errors occur
-				for i := 0; i < 10; i++ {
+				for i := range 10 {
 					// Fill with test signal
 					for j := range input {
 						input[j] = float32(math.Sin(float64(i*blockSize+j) * 0.1))
@@ -273,7 +280,7 @@ func TestProcessSample32(t *testing.T) {
 
 	// Process samples one at a time
 	numSamples := 512
-	for i := 0; i < numSamples; i++ {
+	for i := range numSamples {
 		input := float32(0.0)
 		if i == 0 {
 			input = 1.0 // Impulse
@@ -300,6 +307,7 @@ func TestReset(t *testing.T) {
 
 	// Process some data
 	input := make([]float32, 256)
+
 	output := make([]float32, 256)
 	for i := range input {
 		input[i] = float32(math.Sin(float64(i) * 0.1))
@@ -399,13 +407,15 @@ func BenchmarkLowLatencyConvolution(b *testing.B) {
 			}
 
 			input := make([]float32, bm.blockSize)
+
 			output := make([]float32, bm.blockSize)
 			for i := range input {
 				input[i] = float32(math.Sin(float64(i) * 0.1))
 			}
 
 			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
+
+			for range b.N {
 				_ = engine.ProcessBlock(input, output)
 			}
 		})
@@ -431,13 +441,15 @@ func BenchmarkCompareEngines(b *testing.B) {
 		}
 
 		input := make([]float32, blockSize)
+
 		output := make([]float32, blockSize)
 		for i := range input {
 			input[i] = float32(math.Sin(float64(i) * 0.1))
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+
+		for range b.N {
 			_ = engine.ProcessBlock(input, output)
 		}
 	})
@@ -451,7 +463,8 @@ func BenchmarkCompareEngines(b *testing.B) {
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+
+		for range b.N {
 			_ = engine.ProcessBlock(input)
 		}
 	})
@@ -469,13 +482,15 @@ func BenchmarkCompareEngines(b *testing.B) {
 		}
 
 		input := make([]float32, blockSize)
+
 		output := make([]float32, blockSize)
 		for i := range input {
 			input[i] = float32(math.Sin(float64(i) * 0.1))
 		}
 
 		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
+
+		for range b.N {
 			_ = engine.ProcessBlock(input, output)
 		}
 	})

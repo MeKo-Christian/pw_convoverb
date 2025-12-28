@@ -5,7 +5,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/MeKo-Christian/algo-fft"
+	algofft "github.com/MeKo-Christian/algo-fft"
 	"pw-convoverb/pkg/irformat"
 )
 
@@ -26,8 +26,10 @@ func (m *memFile) Write(p []byte) (n int, err error) {
 		copy(newData, m.data)
 		m.data = newData
 	}
+
 	copy(m.data[m.pos:], p)
 	m.pos += int64(len(p))
+
 	return len(p), nil
 }
 
@@ -35,13 +37,16 @@ func (m *memFile) Read(p []byte) (n int, err error) {
 	if m.pos >= int64(len(m.data)) {
 		return 0, io.EOF
 	}
+
 	n = copy(p, m.data[m.pos:])
 	m.pos += int64(n)
+
 	return n, nil
 }
 
 func (m *memFile) Seek(offset int64, whence int) (int64, error) {
 	var newPos int64
+
 	switch whence {
 	case io.SeekStart:
 		newPos = offset
@@ -50,10 +55,13 @@ func (m *memFile) Seek(offset int64, whence int) (int64, error) {
 	case io.SeekEnd:
 		newPos = int64(len(m.data)) + offset
 	}
+
 	if newPos < 0 {
 		return 0, io.EOF
 	}
+
 	m.pos = newPos
+
 	return m.pos, nil
 }
 
@@ -80,23 +88,27 @@ func TestSetWetDryLevels(t *testing.T) {
 
 	// Test wet level
 	reverb.SetWetLevel(0.5)
+
 	if got := reverb.GetWetLevel(); got != 0.5 {
 		t.Errorf("Expected wet level 0.5, got %f", got)
 	}
 
 	// Test clamping
 	reverb.SetWetLevel(1.5)
+
 	if got := reverb.GetWetLevel(); got != 1.0 {
 		t.Errorf("Expected wet level clamped to 1.0, got %f", got)
 	}
 
 	reverb.SetWetLevel(-0.5)
+
 	if got := reverb.GetWetLevel(); got != 0.0 {
 		t.Errorf("Expected wet level clamped to 0.0, got %f", got)
 	}
 
 	// Test dry level
 	reverb.SetDryLevel(0.7)
+
 	if got := reverb.GetDryLevel(); got != 0.7 {
 		t.Errorf("Expected dry level 0.7, got %f", got)
 	}
@@ -131,6 +143,7 @@ func TestProcessBlock(t *testing.T) {
 
 	// Check output is not all zeros (basic sanity check)
 	allZeros := true
+
 	for _, sample := range output {
 		if sample != 0.0 {
 			allZeros = false
@@ -150,7 +163,8 @@ func BenchmarkProcessSample(b *testing.B) {
 	input := float32(0.5)
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		_ = reverb.ProcessSample(input, 0)
 	}
 }
@@ -168,7 +182,8 @@ func BenchmarkProcessBlock(b *testing.B) {
 	}
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+
+	for range b.N {
 		reverb.ProcessBlock(input, output, 0)
 	}
 }
@@ -176,6 +191,7 @@ func BenchmarkProcessBlock(b *testing.B) {
 func TestOverlapAddEngine(t *testing.T) {
 	// Create a simple impulse response (short to avoid slow FFT)
 	irLength := 16
+
 	ir := make([]float32, irLength)
 	for i := range irLength {
 		ir[i] = float32(0.9 * math.Pow(0.95, float64(i)))
@@ -244,6 +260,7 @@ func TestOverlapAddConsistency(t *testing.T) {
 
 	// Both should be non-zero (basic sanity)
 	hasNonZero1 := false
+
 	for _, s := range out1 {
 		if s != 0 {
 			hasNonZero1 = true
@@ -252,6 +269,7 @@ func TestOverlapAddConsistency(t *testing.T) {
 	}
 
 	hasNonZero2 := false
+
 	for _, s := range out2 {
 		if s != 0 {
 			hasNonZero2 = true
@@ -329,10 +347,11 @@ func TestPowerOf2(t *testing.T) {
 	}
 }
 
-// Helper function for testing
+// Helper function for testing.
 func absComplexFloat32(c complex64) float32 {
 	r := real(c)
 	i := imag(c)
+
 	return float32(math.Sqrt(float64(r*r + i*i)))
 }
 
@@ -343,6 +362,7 @@ func TestLoadImpulseResponseFromLibrary(t *testing.T) {
 
 	// Add a test IR with a simple exponential decay
 	irLength := 1024
+
 	irData := make([][]float32, 2) // stereo
 	for ch := range 2 {
 		irData[ch] = make([]float32, irLength)
@@ -357,6 +377,7 @@ func TestLoadImpulseResponseFromLibrary(t *testing.T) {
 
 	// Write library to buffer
 	buf := newMemFile()
+
 	err := irformat.WriteLibrary(buf, lib)
 	if err != nil {
 		t.Fatalf("Failed to write library: %v", err)
@@ -364,6 +385,7 @@ func TestLoadImpulseResponseFromLibrary(t *testing.T) {
 
 	// Read back and verify
 	buf.Seek(0, io.SeekStart)
+
 	reader, err := irformat.NewReader(buf)
 	if err != nil {
 		t.Fatalf("Failed to create reader: %v", err)
@@ -398,6 +420,7 @@ func TestLoadImpulseResponseFromLibrary(t *testing.T) {
 	// Test processing a block
 	input := make([]float32, 64)
 	output := make([]float32, 64)
+
 	for i := range input {
 		input[i] = 0.5
 	}
@@ -406,6 +429,7 @@ func TestLoadImpulseResponseFromLibrary(t *testing.T) {
 
 	// Verify output has some signal
 	hasNonZero := false
+
 	for _, s := range output {
 		if s != 0 {
 			hasNonZero = true
@@ -426,16 +450,19 @@ func TestLoadIRByNameDSP(t *testing.T) {
 	names := []string{"Small Room", "Large Hall", "Plate"}
 	for _, name := range names {
 		irData := make([][]float32, 1) // mono
+
 		irData[0] = make([]float32, 512)
 		for i := range 512 {
 			irData[0][i] = float32(0.5 * math.Exp(-2.0*float64(i)/512.0))
 		}
+
 		ir := irformat.NewImpulseResponse(name, 48000, 1, irData)
 		lib.AddIR(ir)
 	}
 
 	// Write library to buffer
 	buf := newMemFile()
+
 	err := irformat.WriteLibrary(buf, lib)
 	if err != nil {
 		t.Fatalf("Failed to write library: %v", err)
@@ -443,6 +470,7 @@ func TestLoadIRByNameDSP(t *testing.T) {
 
 	// Read back
 	buf.Seek(0, io.SeekStart)
+
 	reader, err := irformat.NewReader(buf)
 	if err != nil {
 		t.Fatalf("Failed to create reader: %v", err)
@@ -483,6 +511,7 @@ func TestLoadImpulseResponseFromBytes(t *testing.T) {
 
 	// Write to buffer
 	buf := newMemFile()
+
 	err := irformat.WriteLibrary(buf, lib)
 	if err != nil {
 		t.Fatalf("Failed to write library: %v", err)
@@ -493,6 +522,7 @@ func TestLoadImpulseResponseFromBytes(t *testing.T) {
 
 	// Create reverb and load from bytes
 	reverb := NewConvolutionReverb(48000, 2)
+
 	err = reverb.LoadImpulseResponseFromBytes(embeddedData, "", 0)
 	if err != nil {
 		t.Fatalf("Failed to load IR from bytes: %v", err)
@@ -504,6 +534,7 @@ func TestLoadImpulseResponseFromBytes(t *testing.T) {
 
 	// Test loading by name
 	reverb2 := NewConvolutionReverb(48000, 2)
+
 	err = reverb2.LoadImpulseResponseFromBytes(embeddedData, "Embedded Test", 0)
 	if err != nil {
 		t.Fatalf("Failed to load IR by name from bytes: %v", err)
@@ -518,6 +549,7 @@ func TestLoadImpulseResponseFromBytes(t *testing.T) {
 func TestApplyImpulseResponseChannelMismatch(t *testing.T) {
 	// Create a mono IR
 	irData := make([][]float32, 1)
+
 	irData[0] = make([]float32, 256)
 	for i := range 256 {
 		irData[0][i] = float32(0.7 * math.Exp(-2.0*float64(i)/256.0))

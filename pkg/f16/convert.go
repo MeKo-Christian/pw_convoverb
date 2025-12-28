@@ -42,6 +42,7 @@ func Float32ToF16(values []float32) []byte {
 	for i, v := range values {
 		binary.LittleEndian.PutUint16(result[i*2:], float32ToF16(v))
 	}
+
 	return result
 }
 
@@ -51,11 +52,13 @@ func F16ToFloat32(data []byte) []float32 {
 	if len(data)%2 != 0 {
 		panic("F16ToFloat32: input length must be even")
 	}
+
 	result := make([]float32, len(data)/2)
 	for i := 0; i < len(data); i += 2 {
 		bits := binary.LittleEndian.Uint16(data[i : i+2])
 		result[i/2] = f16ToFloat32(bits)
 	}
+
 	return result
 }
 
@@ -81,8 +84,8 @@ func Float32ToF16Interleaved(channels [][]float32) []byte {
 	idx := 0
 
 	// Interleave channels
-	for sample := 0; sample < numSamples; sample++ {
-		for ch := 0; ch < numChannels; ch++ {
+	for sample := range numSamples {
+		for ch := range numChannels {
 			binary.LittleEndian.PutUint16(result[idx:], float32ToF16(channels[ch][sample]))
 			idx += 2
 		}
@@ -98,6 +101,7 @@ func F16ToFloat32Deinterleaved(data []byte, channels int) [][]float32 {
 	if len(data)%2 != 0 {
 		panic("F16ToFloat32Deinterleaved: input length must be even")
 	}
+
 	if channels <= 0 {
 		panic("F16ToFloat32Deinterleaved: channels must be > 0")
 	}
@@ -108,14 +112,16 @@ func F16ToFloat32Deinterleaved(data []byte, channels int) [][]float32 {
 	}
 
 	samplesPerChannel := totalSamples / channels
+
 	result := make([][]float32, channels)
 	for i := range result {
 		result[i] = make([]float32, samplesPerChannel)
 	}
 
 	idx := 0
-	for sample := 0; sample < samplesPerChannel; sample++ {
-		for ch := 0; ch < channels; ch++ {
+
+	for sample := range samplesPerChannel {
+		for ch := range channels {
 			bits := binary.LittleEndian.Uint16(data[idx : idx+2])
 			result[ch][sample] = f16ToFloat32(bits)
 			idx += 2
@@ -184,6 +190,7 @@ func float32ToF16(value float32) uint16 {
 	if roundedMantissa > 0x3FF {
 		newExponent++
 		roundedMantissa = 0
+
 		if newExponent >= 31 {
 			// Overflow to infinity
 			return uint16((sign << 15) | 0x7C00)
@@ -258,6 +265,7 @@ func AnalyzeConversionError(original []float32) Stats {
 
 	for i, orig := range original {
 		error := reconstructed[i] - orig
+
 		abserr := error
 		if error < 0 {
 			abserr = -error
@@ -272,6 +280,7 @@ func AnalyzeConversionError(original []float32) Stats {
 		if orig < 0 {
 			absOrig = -orig
 		}
+
 		if absOrig > 1e-10 {
 			relerr := abserr / absOrig
 			if relerr > maxRelErr {
@@ -289,6 +298,7 @@ func AnalyzeConversionError(original []float32) Stats {
 	snr := float32(0)
 	if sumSqError > 0 {
 		noisePower := sumSqError / float32(len(original))
+
 		signalPower = signalPower / float32(len(original))
 		if signalPower > 0 {
 			snr = 10 * float32(math.Log10(float64(signalPower/noisePower)))

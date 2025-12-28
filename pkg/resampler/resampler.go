@@ -24,9 +24,11 @@ func NewWithQuality(lobes int) *Resampler {
 	if lobes < 4 {
 		lobes = 4
 	}
+
 	if lobes > 64 {
 		lobes = 64
 	}
+
 	return &Resampler{
 		sincLobes: lobes,
 	}
@@ -37,7 +39,9 @@ func sinc(x float64) float64 {
 	if math.Abs(x) < 1e-10 {
 		return 1.0
 	}
+
 	pix := math.Pi * x
+
 	return math.Sin(pix) / pix
 }
 
@@ -49,6 +53,7 @@ func blackmanWindow(x float64) float64 {
 	}
 	// Blackman window: 0.42 - 0.5*cos(2*pi*(x+1)/2) + 0.08*cos(4*pi*(x+1)/2)
 	t := (x + 1.0) / 2.0 // Map [-1,1] to [0,1]
+
 	return 0.42 - 0.5*math.Cos(2*math.Pi*t) + 0.08*math.Cos(4*math.Pi*t)
 }
 
@@ -63,6 +68,7 @@ func (r *Resampler) Resample(data []float32, srcRate, dstRate float64) ([]float3
 	if srcRate == dstRate {
 		result := make([]float32, len(data))
 		copy(result, data)
+
 		return result, nil
 	}
 
@@ -77,7 +83,7 @@ func (r *Resampler) Resample(data []float32, srcRate, dstRate float64) ([]float3
 	output := make([]float32, outputLen)
 
 	// For each output sample, compute the windowed sinc interpolation
-	for i := 0; i < outputLen; i++ {
+	for i := range outputLen {
 		// Map output position to input position
 		inputPos := float64(i) / ratio
 
@@ -97,6 +103,7 @@ func (r *Resampler) Resample(data []float32, srcRate, dstRate float64) ([]float3
 		if startIdx < 0 {
 			startIdx = 0
 		}
+
 		if endIdx >= inputLen {
 			endIdx = inputLen - 1
 		}
@@ -136,7 +143,7 @@ func (r *Resampler) Resample(data []float32, srcRate, dstRate float64) ([]float3
 
 // ResampleMultiChannel resamples multi-channel audio data.
 // Input: [channel][sample] at srcRate
-// Output: [channel][sample] at dstRate
+// Output: [channel][sample] at dstRate.
 func (r *Resampler) ResampleMultiChannel(data [][]float32, srcRate, dstRate float64) ([][]float32, error) {
 	if len(data) == 0 {
 		return [][]float32{}, nil
@@ -149,6 +156,7 @@ func (r *Resampler) ResampleMultiChannel(data [][]float32, srcRate, dstRate floa
 		if err != nil {
 			return nil, err
 		}
+
 		result[ch] = resampled
 	}
 
@@ -160,5 +168,6 @@ func CalculateOutputLength(inputLen int, srcRate, dstRate float64) int {
 	if inputLen == 0 {
 		return 0
 	}
+
 	return int(math.Round(float64(inputLen) * dstRate / srcRate))
 }

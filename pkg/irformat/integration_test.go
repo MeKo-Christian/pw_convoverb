@@ -27,6 +27,7 @@ func TestIntegrationWriteReadFile(t *testing.T) {
 		file.Close()
 		t.Fatalf("WriteLibrary failed: %v", err)
 	}
+
 	file.Close()
 
 	// Get file size for verification
@@ -34,6 +35,7 @@ func TestIntegrationWriteReadFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to stat file: %v", err)
 	}
+
 	t.Logf("Library file size: %d bytes", info.Size())
 
 	// Read back from file
@@ -64,10 +66,12 @@ func TestIntegrationLazyLoading(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file: %v", err)
 	}
+
 	if err := WriteLibrary(file, lib); err != nil {
 		file.Close()
 		t.Fatalf("WriteLibrary failed: %v", err)
 	}
+
 	file.Close()
 
 	// Open for reading
@@ -94,12 +98,15 @@ func TestIntegrationLazyLoading(t *testing.T) {
 		if entry.Name != expected.Name {
 			t.Errorf("Index entry %d name: got %q, want %q", i, entry.Name, expected.Name)
 		}
+
 		if entry.Category != expected.Category {
 			t.Errorf("Index entry %d category: got %q, want %q", i, entry.Category, expected.Category)
 		}
+
 		if entry.Channels != expected.Channels {
 			t.Errorf("Index entry %d channels: got %d, want %d", i, entry.Channels, expected.Channels)
 		}
+
 		if entry.Length != expected.Length {
 			t.Errorf("Index entry %d length: got %d, want %d", i, entry.Length, expected.Length)
 		}
@@ -110,6 +117,7 @@ func TestIntegrationLazyLoading(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadIR(2) failed: %v", err)
 	}
+
 	if ir.Metadata.Name != lib.IRs[2].Metadata.Name {
 		t.Errorf("Loaded IR name: got %q, want %q", ir.Metadata.Name, lib.IRs[2].Metadata.Name)
 	}
@@ -127,10 +135,12 @@ func TestIntegrationIndexSeeking(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file: %v", err)
 	}
+
 	if err := WriteLibrary(file, lib); err != nil {
 		file.Close()
 		t.Fatalf("WriteLibrary failed: %v", err)
 	}
+
 	file.Close()
 
 	// Open for reading
@@ -152,10 +162,12 @@ func TestIntegrationIndexSeeking(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadIR(%d) failed: %v", idx, err)
 		}
+
 		expected := lib.IRs[idx]
 		if ir.Metadata.Name != expected.Metadata.Name {
 			t.Errorf("LoadIR(%d) name: got %q, want %q", idx, ir.Metadata.Name, expected.Metadata.Name)
 		}
+
 		verifyAudioDataMatch(t, expected.Audio.Data, ir.Audio.Data)
 	}
 }
@@ -229,10 +241,12 @@ func TestIntegrationVariedContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file: %v", err)
 	}
+
 	if err := WriteLibrary(file, lib); err != nil {
 		file.Close()
 		t.Fatalf("WriteLibrary failed: %v", err)
 	}
+
 	file.Close()
 
 	file, err = os.Open(filePath)
@@ -279,10 +293,12 @@ func TestIntegrationFileSizeReduction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create file: %v", err)
 	}
+
 	if err := WriteLibrary(file, lib); err != nil {
 		file.Close()
 		t.Fatalf("WriteLibrary failed: %v", err)
 	}
+
 	file.Close()
 
 	// Check file size
@@ -395,21 +411,27 @@ func verifyLibrary(t *testing.T, expected, actual *IRLibrary) {
 		if act.Metadata.Name != exp.Metadata.Name {
 			t.Errorf("IR %d name: got %q, want %q", i, act.Metadata.Name, exp.Metadata.Name)
 		}
+
 		if act.Metadata.Description != exp.Metadata.Description {
 			t.Errorf("IR %d description: got %q, want %q", i, act.Metadata.Description, exp.Metadata.Description)
 		}
+
 		if act.Metadata.Category != exp.Metadata.Category {
 			t.Errorf("IR %d category: got %q, want %q", i, act.Metadata.Category, exp.Metadata.Category)
 		}
+
 		if act.Metadata.SampleRate != exp.Metadata.SampleRate {
 			t.Errorf("IR %d sample rate: got %v, want %v", i, act.Metadata.SampleRate, exp.Metadata.SampleRate)
 		}
+
 		if act.Metadata.Channels != exp.Metadata.Channels {
 			t.Errorf("IR %d channels: got %d, want %d", i, act.Metadata.Channels, exp.Metadata.Channels)
 		}
+
 		if act.Metadata.Length != exp.Metadata.Length {
 			t.Errorf("IR %d length: got %d, want %d", i, act.Metadata.Length, exp.Metadata.Length)
 		}
+
 		if len(act.Metadata.Tags) != len(exp.Metadata.Tags) {
 			t.Errorf("IR %d tag count: got %d, want %d", i, len(act.Metadata.Tags), len(exp.Metadata.Tags))
 		}
@@ -438,6 +460,7 @@ func verifyAudioDataMatch(t *testing.T, expected, actual [][]float32) {
 			act := actual[ch][i]
 
 			absErr := math.Abs(float64(exp - act))
+
 			relErr := float64(0)
 			if math.Abs(float64(exp)) > 1e-6 {
 				relErr = absErr / math.Abs(float64(exp))
@@ -454,22 +477,24 @@ func verifyAudioDataMatch(t *testing.T, expected, actual [][]float32) {
 // generateDecay generates an exponential decay signal (typical IR shape).
 func generateDecay(n int) []float32 {
 	samples := make([]float32, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		t := float64(i) / float64(n)
 		samples[i] = float32(math.Exp(-5 * t))
 	}
+
 	return samples
 }
 
 // generateSineWave generates a sine wave signal.
 func generateSineWave(n int, freq, sampleRate float64) []float32 {
 	samples := make([]float32, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		t := float64(i) / sampleRate
 		samples[i] = float32(math.Sin(2 * math.Pi * freq * t))
 	}
+
 	return samples
 }
 
-// Ensure memFile is used (imported from unit tests)
+// Ensure memFile is used (imported from unit tests).
 var _ io.ReadWriteSeeker = (*memFile)(nil)

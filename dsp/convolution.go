@@ -2,6 +2,7 @@ package dsp
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -11,10 +12,9 @@ import (
 	"strings"
 	"sync"
 
+	algofft "github.com/MeKo-Christian/algo-fft"
 	"pw-convoverb/pkg/irformat"
 	"pw-convoverb/pkg/resampler"
-
-	algofft "github.com/MeKo-Christian/algo-fft"
 )
 
 // IRIndexEntry is an alias for irformat.IndexEntry for external use.
@@ -150,6 +150,7 @@ func NewConvolutionReverb(sampleRate float64, channels int) *ConvolutionReverb {
 func NewConvolutionReverbWithEngine(sampleRate float64, channels int, engineType EngineType) *ConvolutionReverb {
 	r := NewConvolutionReverb(sampleRate, channels)
 	r.engineType = engineType
+
 	return r
 }
 
@@ -158,6 +159,7 @@ func NewConvolutionReverbWithEngine(sampleRate float64, channels int, engineType
 func (r *ConvolutionReverb) SetEngineType(engineType EngineType) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.engineType = engineType
 }
 
@@ -167,12 +169,15 @@ func (r *ConvolutionReverb) SetEngineType(engineType EngineType) {
 func (r *ConvolutionReverb) SetLatency(minBlockOrder int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	if minBlockOrder < 6 {
 		minBlockOrder = 6
 	}
+
 	if minBlockOrder > 9 {
 		minBlockOrder = 9
 	}
+
 	r.minBlockOrder = minBlockOrder
 }
 
@@ -180,15 +185,18 @@ func (r *ConvolutionReverb) SetLatency(minBlockOrder int) {
 func (r *ConvolutionReverb) GetLatency() int {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
 	if len(r.engines) > 0 && r.engines[0] != nil {
 		return r.engines[0].Latency()
 	}
+
 	return 1 << r.minBlockOrder
 }
 
 // NewOverlapAddEngine creates a new overlap-add engine for a given impulse response.
 func NewOverlapAddEngine(ir []float32, blockSize int) *OverlapAddEngine {
 	irLen := len(ir)
+
 	fftSize := nextPowerOf2(2*blockSize - 1)
 	if fftSize < irLen {
 		fftSize = nextPowerOf2(irLen)
@@ -238,7 +246,7 @@ func (e *OverlapAddEngine) ProcessBlock(input []float32) []float32 {
 	}
 
 	// Pad input to FFT size
-	for i := 0; i < e.fftSize; i++ {
+	for i := range e.fftSize {
 		if i < len(input) {
 			e.inputBuf[i] = complex(input[i], 0)
 		} else {
@@ -288,6 +296,7 @@ func (e *OverlapAddEngine) ProcessBlock(input []float32) []float32 {
 		if overlapLen > len(e.overlapBuffer) {
 			overlapLen = len(e.overlapBuffer)
 		}
+
 		copy(e.overlapBuffer, e.timeDomainOut[len(input):len(input)+overlapLen])
 	}
 
@@ -300,8 +309,10 @@ func (e *OverlapAddEngine) ProcessBlockInplace(input, output []float32) error {
 	if len(input) != len(output) {
 		return fmt.Errorf("input and output must have same length: %d != %d", len(input), len(output))
 	}
+
 	result := e.ProcessBlock(input)
 	copy(output, result)
+
 	return nil
 }
 
@@ -317,12 +328,15 @@ func (e *OverlapAddEngine) Reset() {
 	for i := range e.overlapBuffer {
 		e.overlapBuffer[i] = 0
 	}
+
 	for i := range e.inputBuf {
 		e.inputBuf[i] = 0
 	}
+
 	for i := range e.outputBuf {
 		e.outputBuf[i] = 0
 	}
+
 	for i := range e.timeDomainOut {
 		e.timeDomainOut[i] = 0
 	}
@@ -391,7 +405,7 @@ func (r *ConvolutionReverb) applyImpulseResponse(irData [][]float32, irSampleRat
 // Caller must hold r.mu lock.
 func (r *ConvolutionReverb) applyImpulseResponseUnlocked(irData [][]float32, irSampleRate float64) error {
 	if len(irData) == 0 {
-		return fmt.Errorf("IR data is empty")
+		return errors.New("IR data is empty")
 	}
 
 	// Store original IR for future resampling on sample rate changes
@@ -400,12 +414,15 @@ func (r *ConvolutionReverb) applyImpulseResponseUnlocked(irData [][]float32, irS
 
 	// Resample IR if sample rates differ
 	irToUse := irData
+
 	if irSampleRate != r.sampleRate && r.resamplerInstance != nil {
 		log.Printf("Resampling IR from %.0f Hz to %.0f Hz", irSampleRate, r.sampleRate)
+
 		resampled, err := r.resamplerInstance.ResampleMultiChannel(irData, irSampleRate, r.sampleRate)
 		if err != nil {
 			return fmt.Errorf("failed to resample IR: %w", err)
 		}
+
 		irToUse = resampled
 	}
 
@@ -423,6 +440,7 @@ func (r *ConvolutionReverb) applyImpulseResponseUnlocked(irData [][]float32, irS
 
 		// Create engine based on configured type
 		var err error
+
 		r.engines[ch], err = r.createEngine(r.ir[ch])
 		if err != nil {
 			return fmt.Errorf("failed to create engine for channel %d: %w", ch, err)
@@ -430,6 +448,7 @@ func (r *ConvolutionReverb) applyImpulseResponseUnlocked(irData [][]float32, irS
 	}
 
 	r.enabled = true
+
 	return nil
 }
 
@@ -451,6 +470,7 @@ func (r *ConvolutionReverb) loadSyntheticIR() error {
 
 		// Create engine based on configured type
 		var err error
+
 		r.engines[ch], err = r.createEngine(r.ir[ch])
 		if err != nil {
 			return fmt.Errorf("failed to create engine for channel %d: %w", ch, err)
@@ -458,6 +478,7 @@ func (r *ConvolutionReverb) loadSyntheticIR() error {
 	}
 
 	r.enabled = true
+
 	return nil
 }
 
@@ -530,6 +551,7 @@ func (r *ConvolutionReverb) LoadImpulseResponseFromBytes(data []byte, irName str
 // Returns the name of the loaded IR on success.
 func (r *ConvolutionReverb) SwitchIR(data []byte, irIndex int) (string, error) {
 	reader := bytes.NewReader(data)
+
 	irReader, err := irformat.NewReader(reader)
 	if err != nil {
 		return "", fmt.Errorf("failed to read IR library: %w", err)
@@ -546,10 +568,12 @@ func (r *ConvolutionReverb) SwitchIR(data []byte, irIndex int) (string, error) {
 	}
 
 	r.mu.Lock()
+
 	if err := r.applyImpulseResponseUnlocked(ir.Audio.Data, ir.Metadata.SampleRate); err != nil {
 		r.mu.Unlock()
 		return "", err
 	}
+
 	listeners := r.listeners
 	r.mu.Unlock()
 
@@ -616,6 +640,7 @@ func (r *ConvolutionReverb) SetSampleRate(sampleRate float64) {
 			r.mu.Lock()
 			r.resamplingInFlight = false
 			r.mu.Unlock()
+
 			return
 		}
 
@@ -644,10 +669,12 @@ func (r *ConvolutionReverb) SetSampleRate(sampleRate float64) {
 				log.Printf("Failed to create engine for channel %d after resampling: %v", ch, err)
 				continue
 			}
+
 			r.engines[ch] = engine
 		}
 
 		r.resamplingInFlight = false
+
 		log.Printf("IR resampling complete, now at %.0f Hz", sampleRate)
 	}()
 }
@@ -656,6 +683,7 @@ func (r *ConvolutionReverb) SetSampleRate(sampleRate float64) {
 func (r *ConvolutionReverb) AddStateListener(l StateListener) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+
 	r.listeners = append(r.listeners, l)
 }
 
@@ -683,12 +711,15 @@ func (r *ConvolutionReverb) notifyIRChange(index int, name string) {
 // SetWetLevel sets the wet (reverb) mix level (0.0-1.0).
 func (r *ConvolutionReverb) SetWetLevel(level float64) {
 	r.mu.Lock()
+
 	if level < 0.0 {
 		level = 0.0
 	}
+
 	if level > 1.0 {
 		level = 1.0
 	}
+
 	r.wetLevel = level
 	listeners := r.listeners
 	r.mu.Unlock()
@@ -702,12 +733,15 @@ func (r *ConvolutionReverb) SetWetLevel(level float64) {
 // SetDryLevel sets the dry (direct) mix level (0.0-1.0).
 func (r *ConvolutionReverb) SetDryLevel(level float64) {
 	r.mu.Lock()
+
 	if level < 0.0 {
 		level = 0.0
 	}
+
 	if level > 1.0 {
 		level = 1.0
 	}
+
 	r.dryLevel = level
 	listeners := r.listeners
 	r.mu.Unlock()
@@ -722,6 +756,7 @@ func (r *ConvolutionReverb) SetDryLevel(level float64) {
 func (r *ConvolutionReverb) GetWetLevel() float64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
 	return r.wetLevel
 }
 
@@ -729,6 +764,7 @@ func (r *ConvolutionReverb) GetWetLevel() float64 {
 func (r *ConvolutionReverb) GetDryLevel() float64 {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
 	return r.dryLevel
 }
 
@@ -744,6 +780,7 @@ func (r *ConvolutionReverb) ProcessSample(input float32, channel int) float32 {
 	// For sample-by-sample processing, we just pass through
 	// Real processing happens in ProcessBlock with overlap-add
 	dry := input * float32(r.dryLevel)
+
 	return dry
 }
 
@@ -764,6 +801,7 @@ func (r *ConvolutionReverb) ProcessBlock(input, output []float32, channel int) {
 	// Process block using convolution engine
 	// Use a temporary buffer for wet signal
 	wet := make([]float32, len(input))
+
 	err := r.engines[channel].ProcessBlockInplace(input, wet)
 	if err != nil {
 		// On error, just copy input to output
@@ -775,19 +813,23 @@ func (r *ConvolutionReverb) ProcessBlock(input, output []float32, channel int) {
 	var inputPeak, outputPeak, reverbPeak float32
 	for i := range output {
 		dry := input[i] * float32(r.dryLevel)
+
 		wetOut := float32(0)
 		if i < len(wet) {
 			wetOut = wet[i] * float32(r.wetLevel)
 		}
+
 		output[i] = dry + wetOut
 
 		// Track peaks (absolute values)
 		if absIn := float32(math.Abs(float64(input[i]))); absIn > inputPeak {
 			inputPeak = absIn
 		}
+
 		if absOut := float32(math.Abs(float64(output[i]))); absOut > outputPeak {
 			outputPeak = absOut
 		}
+
 		if absWet := float32(math.Abs(float64(wetOut))); absWet > reverbPeak {
 			reverbPeak = absWet
 		}
@@ -795,15 +837,19 @@ func (r *ConvolutionReverb) ProcessBlock(input, output []float32, channel int) {
 
 	// Update peak meters (use separate mutex to avoid blocking audio)
 	r.meterMutex.Lock()
+
 	if inputPeak > r.inputPeaks[channel] {
 		r.inputPeaks[channel] = inputPeak
 	}
+
 	if outputPeak > r.outputPeaks[channel] {
 		r.outputPeaks[channel] = outputPeak
 	}
+
 	if reverbPeak > r.reverbPeaks[channel] {
 		r.reverbPeaks[channel] = reverbPeak
 	}
+
 	r.meterMutex.Unlock()
 }
 
@@ -832,14 +878,16 @@ func (r *ConvolutionReverb) GetMetrics(channel int) (inputLevel, outputLevel, re
 
 // Helper functions
 
-// nextPowerOf2 returns the next power of 2 >= n
+// nextPowerOf2 returns the next power of 2 >= n.
 func nextPowerOf2(n int) int {
 	if n <= 1 {
 		return 1
 	}
+
 	p := 1
 	for p < n {
 		p *= 2
 	}
+
 	return p
 }

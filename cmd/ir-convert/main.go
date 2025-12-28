@@ -13,6 +13,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -52,7 +53,8 @@ func main() {
 	inputDir := flag.Arg(0)
 	outputFile := flag.Arg(1)
 
-	if err := run(inputDir, outputFile); err != nil {
+	err := run(inputDir, outputFile)
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
@@ -92,7 +94,7 @@ func run(inputDir, outputFile string) error {
 	}
 
 	if len(lib.IRs) == 0 {
-		return fmt.Errorf("no files were successfully converted")
+		return errors.New("no files were successfully converted")
 	}
 
 	// Write output file
@@ -142,8 +144,8 @@ func findAIFFFiles(dir string, recursive bool) ([]string, error) {
 
 		return nil
 	}
-
-	if err := filepath.WalkDir(dir, walkFn); err != nil {
+	err := filepath.WalkDir(dir, walkFn)
+	if err != nil {
 		return nil, err
 	}
 
@@ -173,10 +175,12 @@ func convertFile(filePath, baseDir string) (*irformat.ImpulseResponse, error) {
 
 	// Infer metadata
 	name := inferName(filePath)
+
 	cat := inferCategory(filePath, baseDir)
 	if *category != "" {
 		cat = *category
 	}
+
 	tags := inferTags(name)
 
 	ir := &irformat.ImpulseResponse{
@@ -211,6 +215,7 @@ func inferName(filePath string) string {
 	name = strings.TrimSuffix(name, ext)
 	// Clean up underscores
 	name = strings.ReplaceAll(name, "_", " ")
+
 	return name
 }
 
@@ -263,12 +268,14 @@ func inferTags(name string) []string {
 func normalizeAudio(data [][]float32) [][]float32 {
 	// Find peak across all channels
 	var peak float32
+
 	for _, ch := range data {
 		for _, sample := range ch {
 			abs := sample
 			if abs < 0 {
 				abs = -abs
 			}
+
 			if abs > peak {
 				peak = abs
 			}
