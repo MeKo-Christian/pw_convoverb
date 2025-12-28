@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
-	algofft "github.com/MeKo-Christian/algo-fft"
 	"pw-convoverb/pkg/irformat"
 	"pw-convoverb/pkg/resampler"
+
+	algofft "github.com/MeKo-Christian/algo-fft"
 )
 
 // IRIndexEntry is an alias for irformat.IndexEntry for external use.
@@ -110,6 +112,12 @@ type ConvolutionReverb struct {
 
 	// State listeners (for web UI synchronization)
 	listeners []StateListener
+
+	// Peak metering (per channel)
+	meterMutex  sync.Mutex // Separate mutex for metering to avoid contention
+	inputPeaks  []float32  // Peak input levels since last read
+	outputPeaks []float32  // Peak output levels since last read
+	reverbPeaks []float32  // Peak reverb (wet) levels since last read
 }
 
 // NewConvolutionReverb creates a new convolution reverb processor.
@@ -122,13 +130,18 @@ func NewConvolutionReverb(sampleRate float64, channels int) *ConvolutionReverb {
 		dryLevel:          0.7,
 		engineType:        EngineTypeLowLatency,
 		minBlockOrder:     6,     // 64-sample latency
-		maxBlockOrder:     9,     // 512-sample max partition
+		maxBlockOrder:     10,    // 1024-sample max partition
 		enabled:           false, // Disabled until IR is loaded
 		resamplerInstance: resampler.New(),
 	}
 
 	// Initialize per-channel engines slice
 	r.engines = make([]ConvolutionEngine, channels)
+
+	// Initialize per-channel peak meters
+	r.inputPeaks = make([]float32, channels)
+	r.outputPeaks = make([]float32, channels)
+	r.reverbPeaks = make([]float32, channels)
 
 	return r
 }
@@ -758,7 +771,8 @@ func (r *ConvolutionReverb) ProcessBlock(input, output []float32, channel int) {
 		return
 	}
 
-	// Mix dry and wet
+	// Track peak levels while mixing
+	var inputPeak, outputPeak, reverbPeak float32
 	for i := range output {
 		dry := input[i] * float32(r.dryLevel)
 		wetOut := float32(0)
@@ -766,17 +780,54 @@ func (r *ConvolutionReverb) ProcessBlock(input, output []float32, channel int) {
 			wetOut = wet[i] * float32(r.wetLevel)
 		}
 		output[i] = dry + wetOut
+
+		// Track peaks (absolute values)
+		if absIn := float32(math.Abs(float64(input[i]))); absIn > inputPeak {
+			inputPeak = absIn
+		}
+		if absOut := float32(math.Abs(float64(output[i]))); absOut > outputPeak {
+			outputPeak = absOut
+		}
+		if absWet := float32(math.Abs(float64(wetOut))); absWet > reverbPeak {
+			reverbPeak = absWet
+		}
 	}
+
+	// Update peak meters (use separate mutex to avoid blocking audio)
+	r.meterMutex.Lock()
+	if inputPeak > r.inputPeaks[channel] {
+		r.inputPeaks[channel] = inputPeak
+	}
+	if outputPeak > r.outputPeaks[channel] {
+		r.outputPeaks[channel] = outputPeak
+	}
+	if reverbPeak > r.reverbPeaks[channel] {
+		r.reverbPeaks[channel] = reverbPeak
+	}
+	r.meterMutex.Unlock()
 }
 
 // GetMetrics returns current processing metrics (for TUI display).
+// Returns peak levels since the last call and resets the peaks.
 func (r *ConvolutionReverb) GetMetrics(channel int) (inputLevel, outputLevel, reverbLevel float32) {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.meterMutex.Lock()
+	defer r.meterMutex.Unlock()
 
-	// TODO: Implement proper metering
-	// For now, return placeholder values
-	return 0.0, 0.0, 0.0
+	if channel < 0 || channel >= len(r.inputPeaks) {
+		return 0.0, 0.0, 0.0
+	}
+
+	// Get current peaks
+	inputLevel = r.inputPeaks[channel]
+	outputLevel = r.outputPeaks[channel]
+	reverbLevel = r.reverbPeaks[channel]
+
+	// Reset peaks for next measurement period
+	r.inputPeaks[channel] = 0
+	r.outputPeaks[channel] = 0
+	r.reverbPeaks[channel] = 0
+
+	return inputLevel, outputLevel, reverbLevel
 }
 
 // Helper functions
