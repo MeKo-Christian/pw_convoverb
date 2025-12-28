@@ -171,6 +171,25 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return nil
 }
 
+// OnWetLevelChange is called when the wet level changes (StateListener).
+func (s *Server) OnWetLevelChange(level float64) {
+	s.broadcastParamChange("wet", level)
+}
+
+// OnDryLevelChange is called when the dry level changes (StateListener).
+func (s *Server) OnDryLevelChange(level float64) {
+	s.broadcastParamChange("dry", level)
+}
+
+// OnIRChange is called when the IR changes (StateListener).
+func (s *Server) OnIRChange(index int, name string) {
+	s.mu.Lock()
+	s.currentIRIdx = index
+	s.currentIRName = name
+	s.mu.Unlock()
+	s.broadcastIRChange(index, name)
+}
+
 // handleIndex serves the main HTML page.
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
@@ -418,25 +437,6 @@ func (s *Server) handleAPIIRList(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	//nolint:errchkjson // IREntry slice is well-defined
 	_ = json.NewEncoder(w).Encode(s.irList)
-}
-
-// OnWetLevelChange is called when the wet level changes (StateListener).
-func (s *Server) OnWetLevelChange(level float64) {
-	s.broadcastParamChange("wet", level)
-}
-
-// OnDryLevelChange is called when the dry level changes (StateListener).
-func (s *Server) OnDryLevelChange(level float64) {
-	s.broadcastParamChange("dry", level)
-}
-
-// OnIRChange is called when the IR changes (StateListener).
-func (s *Server) OnIRChange(index int, name string) {
-	s.mu.Lock()
-	s.currentIRIdx = index
-	s.currentIRName = name
-	s.mu.Unlock()
-	s.broadcastIRChange(index, name)
 }
 
 // OpenBrowser opens the default browser to the specified URL.
