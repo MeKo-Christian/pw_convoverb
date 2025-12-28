@@ -86,6 +86,7 @@ func TestNewConvolutionReverb(t *testing.T) {
 
 func TestSetWetDryLevels(t *testing.T) {
 	t.Parallel()
+
 	reverb := NewConvolutionReverb(48000, 2)
 
 	// Test wet level
@@ -118,6 +119,7 @@ func TestSetWetDryLevels(t *testing.T) {
 
 func TestProcessSampleWithoutIR(t *testing.T) {
 	t.Parallel()
+
 	reverb := NewConvolutionReverb(48000, 2)
 
 	// Without loaded IR, output should equal input
@@ -131,6 +133,7 @@ func TestProcessSampleWithoutIR(t *testing.T) {
 
 func TestProcessBlock(t *testing.T) {
 	t.Parallel()
+
 	reverb := NewConvolutionReverb(48000, 2)
 
 	const blockSize = 64
@@ -333,6 +336,7 @@ func TestFFTRoundtrip(t *testing.T) {
 
 func TestPowerOf2(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		input    int
 		expected int

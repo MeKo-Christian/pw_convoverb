@@ -7,6 +7,7 @@ import (
 
 func TestFloat32ToF16ToFloat32RoundTrip(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name  string
 		input float32
@@ -28,6 +29,7 @@ func TestFloat32ToF16ToFloat32RoundTrip(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			f16bits := float32ToF16(tt.input)
 			result := f16ToFloat32(f16bits)
 
@@ -88,6 +90,7 @@ func TestFloat32ToF16ToFloat32RoundTrip(t *testing.T) {
 
 func TestFloat32ToF16Slice(t *testing.T) {
 	t.Parallel()
+
 	input := []float32{0.0, 1.0, -1.0, 0.5, -0.5, 2.0}
 	f16bytes := Float32ToF16(input)
 
@@ -116,6 +119,7 @@ func TestFloat32ToF16Slice(t *testing.T) {
 
 func TestF16ToFloat32InvalidInput(t *testing.T) {
 	t.Parallel()
+
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("expected panic for odd-length input")
@@ -127,6 +131,7 @@ func TestF16ToFloat32InvalidInput(t *testing.T) {
 
 func TestFloat32ToF16InterleavedStereo(t *testing.T) {
 	t.Parallel()
+
 	channels := [][]float32{
 		{0.0, 0.5, -0.5, 1.0},
 		{0.25, -0.25, 0.75, -1.0},
@@ -142,6 +147,7 @@ func TestFloat32ToF16InterleavedStereo(t *testing.T) {
 
 func TestF16ToFloat32DeinterleavedStereo(t *testing.T) {
 	t.Parallel()
+
 	channels := [][]float32{
 		{0.0, 0.5, -0.5, 1.0},
 		{0.25, -0.25, 0.75, -1.0},
@@ -177,6 +183,7 @@ func TestF16ToFloat32DeinterleavedStereo(t *testing.T) {
 
 func TestFloat32ToF16InterleavedMismatchedChannels(t *testing.T) {
 	t.Parallel()
+
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("expected panic for mismatched channel lengths")
@@ -192,6 +199,7 @@ func TestFloat32ToF16InterleavedMismatchedChannels(t *testing.T) {
 
 func TestF16ToFloat32DeinterleavedInvalidChannels(t *testing.T) {
 	t.Parallel()
+
 	defer func() {
 		if r := recover(); r == nil {
 			t.Error("expected panic for invalid channel count")
@@ -204,6 +212,7 @@ func TestF16ToFloat32DeinterleavedInvalidChannels(t *testing.T) {
 
 func TestAnalyzeConversionError(t *testing.T) {
 	t.Parallel()
+
 	samples := []float32{
 		0.0, 0.1, 0.2, -0.1, -0.2, 0.5, -0.5, 1.0, -1.0,
 		0.3, 0.4, 0.6, 0.7, 0.8, 0.9, -0.3, -0.4, -0.6,
@@ -222,6 +231,7 @@ func TestAnalyzeConversionError(t *testing.T) {
 
 func TestSpecialValuesConversion(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name    string
 		value   float32
@@ -237,6 +247,7 @@ func TestSpecialValuesConversion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			f16bits := float32ToF16(tt.value)
 
 			result := f16ToFloat32(f16bits)

@@ -283,7 +283,7 @@ func draw(state *TUIState) {
 }
 
 func drawIRBrowser(state *TUIState) {
-	w, h := termbox.Size()
+	width, height := termbox.Size()
 
 	// Header
 	printTB(0, 0, colMagenta, colDef, "Select Impulse Response")
@@ -294,7 +294,7 @@ func drawIRBrowser(state *TUIState) {
 	// Calculate visible range
 	listStartY := 5
 
-	listHeight := h - listStartY - 2
+	listHeight := height - listStartY - 2
 	if listHeight < 5 {
 		listHeight = 5
 	}
@@ -345,8 +345,8 @@ func drawIRBrowser(state *TUIState) {
 			prefix, idx, name, entry.Category, entry.SampleRate/1000, channelStr, entry.Duration(), suffix)
 
 		// Truncate to screen width
-		if len(line) > w-1 {
-			line = line[:w-1]
+		if len(line) > width-1 {
+			line = line[:width-1]
 		}
 
 		printTB(0, listStartY+i, col, bgColor, line)
@@ -356,7 +356,7 @@ func drawIRBrowser(state *TUIState) {
 	if len(state.irList) > listHeight {
 		scrollInfo := fmt.Sprintf("Showing %d-%d of %d",
 			scrollOffset+1, min(scrollOffset+listHeight, len(state.irList)), len(state.irList))
-		printTB(0, h-1, colYellow, colDef, scrollInfo)
+		printTB(0, height-1, colYellow, colDef, scrollInfo)
 	}
 
 	termbox.Flush()

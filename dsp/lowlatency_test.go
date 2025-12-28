@@ -8,6 +8,7 @@ import (
 // TestNewLowLatencyConvolutionEngine tests engine creation with various parameters.
 func TestNewLowLatencyConvolutionEngine(t *testing.T) {
 	t.Parallel()
+
 	tests := []struct {
 		name          string
 		irLen         int
@@ -85,6 +86,7 @@ func TestNewLowLatencyConvolutionEngine(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+
 			var ir []float32
 			if tt.irLen > 0 {
 				ir = make([]float32, tt.irLen)
@@ -233,6 +235,7 @@ func TestImpulseResponse(t *testing.T) {
 // TestProcessBlockVariableSizes tests processing with different block sizes.
 func TestProcessBlockVariableSizes(t *testing.T) {
 	t.Parallel()
+
 	ir := make([]float32, 512)
 	for i := range ir {
 		ir[i] = float32(math.Exp(-float64(i) / 100.0))
@@ -275,6 +278,7 @@ func TestProcessBlockVariableSizes(t *testing.T) {
 // TestProcessSample32 tests sample-by-sample processing.
 func TestProcessSample32(t *testing.T) {
 	t.Parallel()
+
 	ir := make([]float32, 256)
 	for i := range ir {
 		ir[i] = float32(math.Exp(-float64(i) / 50.0))
@@ -303,6 +307,7 @@ func TestProcessSample32(t *testing.T) {
 // TestReset verifies that Reset clears all state.
 func TestReset(t *testing.T) {
 	t.Parallel()
+
 	ir := make([]float32, 512)
 	for i := range ir {
 		ir[i] = float32(math.Exp(-float64(i) / 100.0))

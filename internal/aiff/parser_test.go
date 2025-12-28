@@ -13,6 +13,7 @@ import (
 // TestParseRealFiles tests parsing of real AIFF files from assets.
 func TestParseRealFiles(t *testing.T) {
 	t.Parallel()
+
 	assetsDir := "../../assets"
 
 	// Skip if assets directory doesn't exist
@@ -32,6 +33,7 @@ func TestParseRealFiles(t *testing.T) {
 	for _, filePath := range files {
 		t.Run(filepath.Base(filePath), func(t *testing.T) {
 			t.Parallel()
+
 			f, err := os.Open(filePath)
 			if err != nil {
 				t.Fatalf("Failed to open file: %v", err)
@@ -152,6 +154,7 @@ func TestParse24Bit(t *testing.T) {
 // TestParseInvalidMagic tests that non-AIFF files are rejected.
 func TestParseInvalidMagic(t *testing.T) {
 	t.Parallel()
+
 	data := []byte("RIFF....WAVEfmt ")
 
 	_, err := Parse(bytes.NewReader(data))
@@ -163,6 +166,7 @@ func TestParseInvalidMagic(t *testing.T) {
 // TestParseEmptyFile tests handling of empty files.
 func TestParseEmptyFile(t *testing.T) {
 	t.Parallel()
+
 	_, err := Parse(bytes.NewReader([]byte{}))
 	if err == nil {
 		t.Error("Expected error for empty file")
@@ -209,6 +213,7 @@ func TestExtendedToFloat64(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+
 			result := extendedToFloat64(tc.bytes)
 			if math.Abs(result-tc.expected) > 0.5 {
 				t.Errorf("Got %v, want %v", result, tc.expected)
@@ -220,6 +225,7 @@ func TestExtendedToFloat64(t *testing.T) {
 // TestDuration tests the Duration method.
 func TestDuration(t *testing.T) {
 	t.Parallel()
+
 	f := &File{
 		NumSamples: 96000,
 		SampleRate: 48000,

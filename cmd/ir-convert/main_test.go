@@ -218,6 +218,7 @@ func TestNormalizeAudio(t *testing.T) {
 // TestFileSizeReduction tests that the converted library is smaller than source.
 func TestFileSizeReduction(t *testing.T) {
 	t.Parallel()
+
 	assetsDir := "../../assets"
 
 	// Skip if assets directory doesn't exist
