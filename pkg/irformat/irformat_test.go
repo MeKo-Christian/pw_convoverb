@@ -472,7 +472,7 @@ func verifyAudioData(t *testing.T, original, loaded [][]float32) {
 		return
 	}
 
-	for ch := range len(original) {
+	for ch := range original {
 		if len(original[ch]) != len(loaded[ch]) {
 			t.Errorf("channel %d length mismatch: got %d, want %d", ch, len(loaded[ch]), len(original[ch]))
 			continue

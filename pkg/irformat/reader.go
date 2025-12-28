@@ -91,6 +91,7 @@ func (r *Reader) readIndex() error {
 	}
 
 	var chunkSize uint64
+
 	err := binary.Read(r.r, binary.LittleEndian, &chunkSize)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrCorruptedData, err)
@@ -165,6 +166,7 @@ func (r *Reader) readIndexEntry() (IndexEntry, error) {
 // readString reads a length-prefixed UTF-8 string.
 func (r *Reader) readString() (string, error) {
 	var length uint16
+
 	err := binary.Read(r.r, binary.LittleEndian, &length)
 	if err != nil {
 		return "", fmt.Errorf("%w: %w", ErrCorruptedData, err)
@@ -242,6 +244,7 @@ func (r *Reader) readIRChunk() (*ImpulseResponse, error) {
 	}
 
 	var chunkSize uint64
+
 	err := binary.Read(r.r, binary.LittleEndian, &chunkSize)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrCorruptedData, err)
@@ -361,6 +364,7 @@ func (r *Reader) readAudioSubChunk(audio *AudioData, channels, length int) error
 	}
 
 	var subChunkSize uint32
+
 	err := binary.Read(r.r, binary.LittleEndian, &subChunkSize)
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrCorruptedData, err)

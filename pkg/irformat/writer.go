@@ -81,6 +81,7 @@ func (w *Writer) WriteIR(ir *ImpulseResponse) error {
 	if _, err := w.w.Write([]byte(ChunkTypeIR)); err != nil {
 		return err
 	}
+
 	err := binary.Write(w.w, binary.LittleEndian, chunkSize)
 	if err != nil {
 		return err
@@ -199,6 +200,7 @@ func (w *Writer) Close() error {
 	if _, err := w.w.Write([]byte(ChunkTypeIndex)); err != nil {
 		return err
 	}
+
 	err := binary.Write(w.w, binary.LittleEndian, uint64(len(indexData)))
 	if err != nil {
 		return err
@@ -213,6 +215,7 @@ func (w *Writer) Close() error {
 	if _, err := w.w.Seek(10, io.SeekStart); err != nil { // offset of index_offset field
 		return err
 	}
+
 	err = binary.Write(w.w, binary.LittleEndian, indexOffset)
 	if err != nil {
 		return err

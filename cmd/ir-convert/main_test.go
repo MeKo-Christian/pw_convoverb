@@ -10,6 +10,8 @@ import (
 
 // TestConvertAssetsDirectory tests converting the real assets directory.
 func TestConvertAssetsDirectory(t *testing.T) {
+	t.Parallel()
+
 	assetsDir := "../../assets"
 
 	// Skip if assets directory doesn't exist
@@ -102,6 +104,8 @@ func TestConvertAssetsDirectory(t *testing.T) {
 
 // TestInferName tests the name inference function.
 func TestInferName(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input    string
 		expected string
@@ -122,6 +126,8 @@ func TestInferName(t *testing.T) {
 
 // TestInferCategory tests the category inference function.
 func TestInferCategory(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		filePath string
 		baseDir  string
@@ -142,6 +148,8 @@ func TestInferCategory(t *testing.T) {
 
 // TestInferTags tests the tag inference function.
 func TestInferTags(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name     string
 		expected []string
@@ -175,6 +183,7 @@ func TestInferTags(t *testing.T) {
 
 // TestNormalizeAudio tests the audio normalization function.
 func TestNormalizeAudio(t *testing.T) {
+	t.Parallel()
 	// Create test data with known peak
 	input := [][]float32{
 		{0.5, -0.8, 0.3, 0.8},
@@ -208,6 +217,7 @@ func TestNormalizeAudio(t *testing.T) {
 
 // TestFileSizeReduction tests that the converted library is smaller than source.
 func TestFileSizeReduction(t *testing.T) {
+	t.Parallel()
 	assetsDir := "../../assets"
 
 	// Skip if assets directory doesn't exist

@@ -144,6 +144,7 @@ func findAIFFFiles(dir string, recursive bool) ([]string, error) {
 
 		return nil
 	}
+
 	err := filepath.WalkDir(dir, walkFn)
 	if err != nil {
 		return nil, err

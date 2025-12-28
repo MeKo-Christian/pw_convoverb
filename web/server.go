@@ -256,6 +256,7 @@ func (s *Server) sendIRList(client *Client) {
 // handleClientMessage handles incoming WebSocket messages.
 func (s *Server) handleClientMessage(data []byte) {
 	var msg Message
+
 	err := json.Unmarshal(data, &msg)
 	if err != nil {
 		slog.Error("Failed to parse WebSocket message", "error", err)

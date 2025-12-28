@@ -139,6 +139,7 @@ func BenchmarkRealisticLowLatencyEngine_Stereo(b *testing.B) {
 				if err != nil {
 					b.Fatalf("left ProcessBlock failed: %v", err)
 				}
+
 				err = right.ProcessBlock(in, outR)
 				if err != nil {
 					b.Fatalf("right ProcessBlock failed: %v", err)
@@ -166,6 +167,7 @@ func BenchmarkRealisticConvolutionReverb_ProcessBlock_Allocations(b *testing.B) 
 	irData := generateRealisticIR(sampleRate, seconds, channels)
 
 	r.mu.Lock()
+
 	err := r.applyImpulseResponseUnlocked(irData, sampleRate)
 	if err != nil {
 		r.mu.Unlock()
