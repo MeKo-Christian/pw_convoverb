@@ -10,7 +10,7 @@ A real-time convolution reverb implemented in Go, using PipeWire for audio I/O.
 
 This project implements a PipeWire filter node that performs convolution reverb on audio streams. The DSP processing is written in Go for maintainability, while PipeWire integration is handled through C bindings (cgo).
 
-**Status**: Initial structure implemented. Convolution reverb DSP implementation is a placeholder and needs to be completed with proper FFT-based partitioned convolution for production use.
+**Status**: Fully functional with FFT-based partitioned convolution, real-time metering, and comprehensive test coverage.
 
 ## Architecture
 
@@ -45,14 +45,12 @@ This project implements a PipeWire filter node that performs convolution reverb 
 - [x] Build system (justfile)
 - [x] Interactive TUI
 
-### TODO
+### Completed
 
-- [ ] Implement WAV file loading for impulse responses
-- [ ] Implement FFT-based partitioned convolution (current implementation is placeholder time-domain)
-- [ ] Add proper metering for TUI display
-- [ ] Implement comprehensive test suite
-- [ ] Add benchmarks for performance optimization
-- [ ] Support for various IR file formats
+- [x] FFT-based partitioned convolution with multi-stage processing
+- [x] Real-time metering for TUI display (input/output/reverb levels)
+- [x] Comprehensive test suite (unit, integration, edge cases)
+- [x] Performance benchmarks with realistic IR workloads
 
 ## Reverb Parameters
 
@@ -145,7 +143,7 @@ The reverb features a terminal-based UI for real-time parameter adjustment and m
 
 ## Testing
 
-The project structure includes placeholders for tests. Implementation pending.
+The project includes a comprehensive test suite covering the convolution engine, IR loading, and audio processing.
 
 ### Test Organization
 
@@ -168,14 +166,16 @@ just test-integration
 just test-coverage
 ```
 
-## Performance Considerations
+## Performance
 
-The current implementation uses simple time-domain convolution, which is inefficient for long impulse responses. For production use, the following optimizations are recommended:
+The implementation uses FFT-based partitioned convolution with multi-stage processing for efficient real-time performance:
 
-1. **FFT-based partitioned convolution** - Split the IR into partitions and use overlap-add FFT convolution
-2. **Zero-latency partitioning** - Use uniform or non-uniform partitioning for low latency
-3. **SIMD optimization** - Vectorize FFT and mixing operations
-4. **Multi-threading** - Process channels in parallel
+- **Partitioned convolution** - IR split into stages with increasing FFT sizes
+- **Modulo scheduling** - Distributes CPU load across multiple audio blocks
+- **Low-latency design** - Configurable latency from 64 to 512+ samples
+- **Zero allocations** - Hot path is allocation-free (0 B/op in benchmarks)
+
+Run benchmarks with: `go test ./dsp -bench Realistic -benchmem`
 
 ## License
 
