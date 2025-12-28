@@ -7,6 +7,7 @@ import (
 
 // TestNewLowLatencyConvolutionEngine tests engine creation with various parameters.
 func TestNewLowLatencyConvolutionEngine(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name          string
 		irLen         int
@@ -83,6 +84,7 @@ func TestNewLowLatencyConvolutionEngine(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			var ir []float32
 			if tt.irLen > 0 {
 				ir = make([]float32, tt.irLen)
@@ -123,6 +125,7 @@ func TestNewLowLatencyConvolutionEngine(t *testing.T) {
 
 // TestPartitioning verifies the IR partitioning logic produces expected stages.
 func TestPartitioning(t *testing.T) {
+	t.Parallel()
 	// Create a 4096-sample IR with minBlockOrder=6, maxBlockOrder=9
 	ir := make([]float32, 4096)
 	for i := range ir {
@@ -157,6 +160,7 @@ func TestPartitioning(t *testing.T) {
 // TestImpulseResponse verifies that convolving with an impulse response
 // reproduces the IR when fed a perfect impulse.
 func TestImpulseResponse(t *testing.T) {
+	t.Parallel()
 	// Create a simple IR: [1, 0.5, 0.25, 0.125, ...]
 	irLen := 256
 
@@ -228,6 +232,7 @@ func TestImpulseResponse(t *testing.T) {
 
 // TestProcessBlockVariableSizes tests processing with different block sizes.
 func TestProcessBlockVariableSizes(t *testing.T) {
+	t.Parallel()
 	ir := make([]float32, 512)
 	for i := range ir {
 		ir[i] = float32(math.Exp(-float64(i) / 100.0))
@@ -244,6 +249,7 @@ func TestProcessBlockVariableSizes(t *testing.T) {
 		t.Run(
 			"blockSize="+string(rune(blockSize)), // Simple name
 			func(t *testing.T) {
+				t.Parallel()
 				engine.Reset()
 
 				input := make([]float32, blockSize)
@@ -268,6 +274,7 @@ func TestProcessBlockVariableSizes(t *testing.T) {
 
 // TestProcessSample32 tests sample-by-sample processing.
 func TestProcessSample32(t *testing.T) {
+	t.Parallel()
 	ir := make([]float32, 256)
 	for i := range ir {
 		ir[i] = float32(math.Exp(-float64(i) / 50.0))
@@ -295,6 +302,7 @@ func TestProcessSample32(t *testing.T) {
 
 // TestReset verifies that Reset clears all state.
 func TestReset(t *testing.T) {
+	t.Parallel()
 	ir := make([]float32, 512)
 	for i := range ir {
 		ir[i] = float32(math.Exp(-float64(i) / 100.0))
@@ -354,6 +362,7 @@ func TestReset(t *testing.T) {
 
 // TestConvolutionStage tests the ConvolutionStage directly.
 func TestConvolutionStage(t *testing.T) {
+	t.Parallel()
 	// Create a stage with order 6 (64-sample partitions, 128-sample FFT)
 	stage, err := NewConvolutionStage(6, 0, 64, 2)
 	if err != nil {

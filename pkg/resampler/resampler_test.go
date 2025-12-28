@@ -6,6 +6,7 @@ import (
 )
 
 func TestResample_EmptyInput(t *testing.T) {
+	t.Parallel()
 	r := New()
 
 	result, err := r.Resample([]float32{}, 48000, 44100)
@@ -19,6 +20,7 @@ func TestResample_EmptyInput(t *testing.T) {
 }
 
 func TestResample_IdentityRatio(t *testing.T) {
+	t.Parallel()
 	r := New()
 	input := []float32{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0}
 
@@ -39,6 +41,7 @@ func TestResample_IdentityRatio(t *testing.T) {
 }
 
 func TestResample_Downsample2x(t *testing.T) {
+	t.Parallel()
 	r := New()
 	// Create a longer input for meaningful downsampling
 	inputLen := 1024
@@ -60,6 +63,7 @@ func TestResample_Downsample2x(t *testing.T) {
 }
 
 func TestResample_Upsample2x(t *testing.T) {
+	t.Parallel()
 	r := New()
 	inputLen := 512
 
@@ -80,6 +84,7 @@ func TestResample_Upsample2x(t *testing.T) {
 }
 
 func TestResample_ArbitraryRatio_88200_to_48000(t *testing.T) {
+	t.Parallel()
 	r := New()
 	// This is the actual use case: 88.2kHz IR to 48kHz playback
 	inputLen := 4096
@@ -102,6 +107,7 @@ func TestResample_ArbitraryRatio_88200_to_48000(t *testing.T) {
 }
 
 func TestResample_PreservesLowFrequencyContent(t *testing.T) {
+	t.Parallel()
 	r := New()
 
 	// Generate a low-frequency sine wave (well below Nyquist for both rates)
@@ -139,6 +145,7 @@ func TestResample_PreservesLowFrequencyContent(t *testing.T) {
 }
 
 func TestResample_EnergyPreservation(t *testing.T) {
+	t.Parallel()
 	r := New()
 
 	// Create a test signal
@@ -170,6 +177,7 @@ func TestResample_EnergyPreservation(t *testing.T) {
 }
 
 func TestResampleMultiChannel(t *testing.T) {
+	t.Parallel()
 	r := New()
 
 	// Create stereo input
@@ -203,6 +211,7 @@ func TestResampleMultiChannel(t *testing.T) {
 }
 
 func TestResampleMultiChannel_Empty(t *testing.T) {
+	t.Parallel()
 	r := New()
 
 	result, err := r.ResampleMultiChannel([][]float32{}, 48000, 44100)
@@ -216,6 +225,7 @@ func TestResampleMultiChannel_Empty(t *testing.T) {
 }
 
 func TestCalculateOutputLength(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		inputLen int
 		srcRate  float64

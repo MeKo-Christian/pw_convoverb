@@ -10,6 +10,7 @@ import (
 
 // TestIntegrationWriteReadFile tests writing to and reading from an actual file.
 func TestIntegrationWriteReadFile(t *testing.T) {
+	t.Parallel()
 	// Create temp file
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "test.irlib")
@@ -56,6 +57,7 @@ func TestIntegrationWriteReadFile(t *testing.T) {
 
 // TestIntegrationLazyLoading tests that the reader supports lazy loading.
 func TestIntegrationLazyLoading(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "lazy.irlib")
 
@@ -125,6 +127,7 @@ func TestIntegrationLazyLoading(t *testing.T) {
 
 // TestIntegrationIndexSeeking tests that index-based seeking works correctly.
 func TestIntegrationIndexSeeking(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "seeking.irlib")
 
@@ -174,6 +177,7 @@ func TestIntegrationIndexSeeking(t *testing.T) {
 
 // TestIntegrationVariedContent tests handling of varied IR characteristics.
 func TestIntegrationVariedContent(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "varied.irlib")
 
@@ -265,6 +269,7 @@ func TestIntegrationVariedContent(t *testing.T) {
 
 // TestIntegrationFileSizeReduction tests that f16 encoding reduces file size.
 func TestIntegrationFileSizeReduction(t *testing.T) {
+	t.Parallel()
 	tmpDir := t.TempDir()
 	filePath := filepath.Join(tmpDir, "size.irlib")
 

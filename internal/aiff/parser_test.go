@@ -12,6 +12,7 @@ import (
 
 // TestParseRealFiles tests parsing of real AIFF files from assets.
 func TestParseRealFiles(t *testing.T) {
+	t.Parallel()
 	assetsDir := "../../assets"
 
 	// Skip if assets directory doesn't exist
@@ -30,6 +31,7 @@ func TestParseRealFiles(t *testing.T) {
 
 	for _, filePath := range files {
 		t.Run(filepath.Base(filePath), func(t *testing.T) {
+			t.Parallel()
 			f, err := os.Open(filePath)
 			if err != nil {
 				t.Fatalf("Failed to open file: %v", err)
@@ -87,6 +89,7 @@ func TestParseRealFiles(t *testing.T) {
 
 // TestParseSyntheticAIFF tests parsing of a synthetically generated AIFF file.
 func TestParseSyntheticAIFF(t *testing.T) {
+	t.Parallel()
 	// Create a minimal valid AIFF file
 	aiff := createSyntheticAIFF(t, 2, 48000, 16, 1000)
 
@@ -114,6 +117,7 @@ func TestParseSyntheticAIFF(t *testing.T) {
 
 // TestParseMono tests parsing of mono AIFF.
 func TestParseMono(t *testing.T) {
+	t.Parallel()
 	aiff := createSyntheticAIFF(t, 1, 44100, 16, 500)
 
 	f, err := Parse(bytes.NewReader(aiff))
@@ -132,6 +136,7 @@ func TestParseMono(t *testing.T) {
 
 // TestParse24Bit tests parsing of 24-bit AIFF.
 func TestParse24Bit(t *testing.T) {
+	t.Parallel()
 	aiff := createSyntheticAIFF(t, 2, 96000, 24, 200)
 
 	f, err := Parse(bytes.NewReader(aiff))
@@ -146,6 +151,7 @@ func TestParse24Bit(t *testing.T) {
 
 // TestParseInvalidMagic tests that non-AIFF files are rejected.
 func TestParseInvalidMagic(t *testing.T) {
+	t.Parallel()
 	data := []byte("RIFF....WAVEfmt ")
 
 	_, err := Parse(bytes.NewReader(data))
@@ -156,6 +162,7 @@ func TestParseInvalidMagic(t *testing.T) {
 
 // TestParseEmptyFile tests handling of empty files.
 func TestParseEmptyFile(t *testing.T) {
+	t.Parallel()
 	_, err := Parse(bytes.NewReader([]byte{}))
 	if err == nil {
 		t.Error("Expected error for empty file")
@@ -164,6 +171,7 @@ func TestParseEmptyFile(t *testing.T) {
 
 // TestParseMissingCOMM tests handling of missing COMM chunk.
 func TestParseMissingCOMM(t *testing.T) {
+	t.Parallel()
 	// Create AIFF with only FORM header
 	var buf bytes.Buffer
 	buf.WriteString("FORM")
@@ -178,6 +186,7 @@ func TestParseMissingCOMM(t *testing.T) {
 
 // TestExtendedToFloat64 tests the 80-bit float conversion.
 func TestExtendedToFloat64(t *testing.T) {
+	t.Parallel()
 	// Test using values from real AIFF files
 	// The 88200 Hz value is from the assets files: 0x400E AC44 0000 0000 0000
 	tests := []struct {
@@ -199,6 +208,7 @@ func TestExtendedToFloat64(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := extendedToFloat64(tc.bytes)
 			if math.Abs(result-tc.expected) > 0.5 {
 				t.Errorf("Got %v, want %v", result, tc.expected)
@@ -209,6 +219,7 @@ func TestExtendedToFloat64(t *testing.T) {
 
 // TestDuration tests the Duration method.
 func TestDuration(t *testing.T) {
+	t.Parallel()
 	f := &File{
 		NumSamples: 96000,
 		SampleRate: 48000,

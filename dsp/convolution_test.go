@@ -66,6 +66,7 @@ func (m *memFile) Seek(offset int64, whence int) (int64, error) {
 }
 
 func TestNewConvolutionReverb(t *testing.T) {
+	t.Parallel()
 	const sampleRate = 48000.0
 	const channels = 2
 
@@ -84,6 +85,7 @@ func TestNewConvolutionReverb(t *testing.T) {
 }
 
 func TestSetWetDryLevels(t *testing.T) {
+	t.Parallel()
 	reverb := NewConvolutionReverb(48000, 2)
 
 	// Test wet level
@@ -115,6 +117,7 @@ func TestSetWetDryLevels(t *testing.T) {
 }
 
 func TestProcessSampleWithoutIR(t *testing.T) {
+	t.Parallel()
 	reverb := NewConvolutionReverb(48000, 2)
 
 	// Without loaded IR, output should equal input
@@ -127,6 +130,7 @@ func TestProcessSampleWithoutIR(t *testing.T) {
 }
 
 func TestProcessBlock(t *testing.T) {
+	t.Parallel()
 	reverb := NewConvolutionReverb(48000, 2)
 
 	const blockSize = 64
@@ -189,6 +193,7 @@ func BenchmarkProcessBlock(b *testing.B) {
 }
 
 func TestOverlapAddEngine(t *testing.T) {
+	t.Parallel()
 	// Create a simple impulse response (short to avoid slow FFT)
 	irLength := 16
 
@@ -214,6 +219,7 @@ func TestOverlapAddEngine(t *testing.T) {
 }
 
 func TestOverlapAddProcessing(t *testing.T) {
+	t.Parallel()
 	// Create impulse response
 	ir := []float32{0.5, 0.3, 0.1, 0.05}
 
@@ -237,6 +243,7 @@ func TestOverlapAddProcessing(t *testing.T) {
 }
 
 func TestOverlapAddConsistency(t *testing.T) {
+	t.Parallel()
 	// Create a simple IR
 	ir := []float32{0.7, 0.2, 0.1}
 
@@ -283,6 +290,7 @@ func TestOverlapAddConsistency(t *testing.T) {
 }
 
 func TestFFTRoundtrip(t *testing.T) {
+	t.Parallel()
 	// Test that FFT -> IFFT gives back original (within floating point precision)
 	// Use power-of-2 size for correct FFT behavior
 	input := []complex64{
@@ -324,6 +332,7 @@ func TestFFTRoundtrip(t *testing.T) {
 }
 
 func TestPowerOf2(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		input    int
 		expected int
@@ -357,6 +366,7 @@ func absComplexFloat32(c complex64) float32 {
 
 // TestLoadImpulseResponseFromLibrary tests loading an IR from an in-memory library.
 func TestLoadImpulseResponseFromLibrary(t *testing.T) {
+	t.Parallel()
 	// Create a test IR library in memory
 	lib := irformat.NewIRLibrary()
 
@@ -444,6 +454,7 @@ func TestLoadImpulseResponseFromLibrary(t *testing.T) {
 
 // TestLoadIRByNameDSP tests loading an IR by name from a library.
 func TestLoadIRByNameDSP(t *testing.T) {
+	t.Parallel()
 	// Create a test library with multiple IRs
 	lib := irformat.NewIRLibrary()
 
@@ -495,6 +506,7 @@ func TestLoadIRByNameDSP(t *testing.T) {
 
 // TestLoadImpulseResponseFromBytes tests loading an IR from embedded byte data.
 func TestLoadImpulseResponseFromBytes(t *testing.T) {
+	t.Parallel()
 	// Create a test library
 	lib := irformat.NewIRLibrary()
 
@@ -547,6 +559,7 @@ func TestLoadImpulseResponseFromBytes(t *testing.T) {
 
 // TestApplyImpulseResponseChannelMismatch tests handling of channel count mismatch.
 func TestApplyImpulseResponseChannelMismatch(t *testing.T) {
+	t.Parallel()
 	// Create a mono IR
 	irData := make([][]float32, 1)
 

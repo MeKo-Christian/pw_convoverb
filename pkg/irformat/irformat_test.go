@@ -70,6 +70,7 @@ func (m *memFile) Bytes() []byte {
 
 // TestWriteReadSingleIR tests writing and reading a single IR.
 func TestWriteReadSingleIR(t *testing.T) {
+	t.Parallel()
 	// Create test IR
 	ir := &ImpulseResponse{
 		Metadata: IRMetadata{
@@ -154,6 +155,7 @@ func TestWriteReadSingleIR(t *testing.T) {
 
 // TestWriteReadMultipleIRs tests writing and reading multiple IRs.
 func TestWriteReadMultipleIRs(t *testing.T) {
+	t.Parallel()
 	irs := []*ImpulseResponse{
 		{
 			Metadata: IRMetadata{
@@ -230,6 +232,7 @@ func TestWriteReadMultipleIRs(t *testing.T) {
 
 // TestListIRs tests the index-based listing.
 func TestListIRs(t *testing.T) {
+	t.Parallel()
 	lib := NewIRLibrary()
 	lib.AddIR(&ImpulseResponse{
 		Metadata: IRMetadata{
@@ -288,6 +291,7 @@ func TestListIRs(t *testing.T) {
 
 // TestLoadIRByName tests loading an IR by name.
 func TestLoadIRByName(t *testing.T) {
+	t.Parallel()
 	lib := NewIRLibrary()
 	lib.AddIR(&ImpulseResponse{
 		Metadata: IRMetadata{Name: "First", SampleRate: 48000, Channels: 1, Length: 10},
@@ -337,6 +341,7 @@ func TestLoadIRByName(t *testing.T) {
 
 // TestInvalidMagic tests that an invalid magic number is rejected.
 func TestInvalidMagic(t *testing.T) {
+	t.Parallel()
 	buf := newMemFile()
 	buf.Write([]byte("XXXX")) // Invalid magic
 	buf.Seek(0, io.SeekStart)
@@ -349,6 +354,7 @@ func TestInvalidMagic(t *testing.T) {
 
 // TestInvalidIndex tests that an invalid index is rejected.
 func TestInvalidIndex(t *testing.T) {
+	t.Parallel()
 	lib := NewIRLibrary()
 	lib.AddIR(&ImpulseResponse{
 		Metadata: IRMetadata{Name: "Only", SampleRate: 48000, Channels: 1, Length: 10},
@@ -380,6 +386,7 @@ func TestInvalidIndex(t *testing.T) {
 
 // TestEmptyStrings tests handling of empty metadata strings.
 func TestEmptyStrings(t *testing.T) {
+	t.Parallel()
 	ir := &ImpulseResponse{
 		Metadata: IRMetadata{
 			Name:        "",
@@ -421,6 +428,7 @@ func TestEmptyStrings(t *testing.T) {
 
 // TestDuration tests the Duration method.
 func TestDuration(t *testing.T) {
+	t.Parallel()
 	ir := NewImpulseResponse("Test", 48000, 2, [][]float32{
 		make([]float32, 96000),
 		make([]float32, 96000),
@@ -440,6 +448,7 @@ func TestDuration(t *testing.T) {
 
 // TestIndexEntryDuration tests the IndexEntry Duration method.
 func TestIndexEntryDuration(t *testing.T) {
+	t.Parallel()
 	entry := IndexEntry{
 		SampleRate: 44100,
 		Length:     88200,

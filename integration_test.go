@@ -8,6 +8,7 @@ import (
 
 // TestIntegrationReverbProcessing tests the full audio processing pipeline.
 func TestIntegrationReverbProcessing(t *testing.T) {
+	t.Parallel()
 	const sampleRate = 48000.0
 	const channels = 2
 
@@ -57,6 +58,7 @@ func TestIntegrationReverbProcessing(t *testing.T) {
 
 // TestIntegrationStereoIndependence verifies that channels are processed independently.
 func TestIntegrationStereoIndependence(t *testing.T) {
+	t.Parallel()
 	const sampleRate = 48000.0
 	const channels = 2
 
