@@ -98,7 +98,7 @@ func Parse(r io.Reader) (*File, error) {
 
 			// Handle padding
 			if chunkSize%2 != 0 {
-				io.ReadFull(r, make([]byte, 1))
+				_, _ = io.ReadFull(r, make([]byte, 1))
 			}
 
 		case "SSND":
@@ -113,7 +113,7 @@ func Parse(r io.Reader) (*File, error) {
 
 			// Handle padding
 			if chunkSize%2 != 0 {
-				io.ReadFull(r, make([]byte, 1))
+				_, _ = io.ReadFull(r, make([]byte, 1))
 			}
 
 		default:
@@ -194,7 +194,7 @@ func (f *File) parseCOMM(r io.Reader, size uint32, formType string) error {
 		}
 	} else if size > 18 {
 		// Skip extra bytes in COMM chunk
-		io.CopyN(io.Discard, r, int64(size-18))
+		_, _ = io.CopyN(io.Discard, r, int64(size-18))
 	}
 
 	return nil
@@ -272,7 +272,7 @@ func (f *File) decodeAudio(data []byte) error {
 
 			case 24:
 				// 24-bit big-endian signed
-				b0, b1, b2 := data[offset], data[offset+1], data[offset+2]
+				b0, b1, b2 := data[offset], data[offset+1], data[offset+2] //nolint:varnamelen // b0-b2 are idiomatic for byte components
 				// Sign-extend from 24 to 32 bits
 				var s int32
 				if b0&0x80 != 0 {
@@ -301,17 +301,17 @@ func (f *File) decodeAudio(data []byte) error {
 
 // extendedToFloat64 converts an 80-bit IEEE 754 extended precision float to float64.
 // AIFF stores sample rate in this format (10 bytes).
-func extendedToFloat64(b []byte) float64 {
-	if len(b) != 10 {
+func extendedToFloat64(byteBuffer []byte) float64 {
+	if len(byteBuffer) != 10 {
 		return 0
 	}
 
 	// Extract sign and exponent
-	sign := (b[0] >> 7) & 1
-	exponent := int(binary.BigEndian.Uint16(b[0:2])) & 0x7FFF
+	sign := (byteBuffer[0] >> 7) & 1
+	exponent := int(binary.BigEndian.Uint16(byteBuffer[0:2])) & 0x7FFF
 
 	// Extract mantissa (64 bits)
-	mantissa := binary.BigEndian.Uint64(b[2:10])
+	mantissa := binary.BigEndian.Uint64(byteBuffer[2:10])
 
 	// Handle special cases
 	if exponent == 0 {
@@ -330,14 +330,14 @@ func extendedToFloat64(b []byte) float64 {
 	// Convert to float64
 	// Extended precision has explicit integer bit, float64 has implicit
 	// Exponent bias: extended = 16383, double = 1023
-	f := float64(mantissa) / float64(1<<63)
-	f = math.Ldexp(f, exponent-16383+1)
+	fval := float64(mantissa) / float64(1<<63)
+	fval = math.Ldexp(fval, exponent-16383+1)
 
 	if sign == 1 {
-		f = -f
+		fval = -fval
 	}
 
-	return f
+	return fval
 }
 
 // Duration returns the duration of the audio file in seconds.

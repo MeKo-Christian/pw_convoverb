@@ -99,7 +99,7 @@ func (r *Reader) readIndex() error {
 
 	// Read index entries
 	r.index = make([]IndexEntry, 0, r.irCount)
-	for range uint32(r.irCount) {
+	for range r.irCount {
 		entry, err := r.readIndexEntry()
 		if err != nil {
 			return err

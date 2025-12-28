@@ -34,13 +34,13 @@ func TestParseRealFiles(t *testing.T) {
 		t.Run(filepath.Base(filePath), func(t *testing.T) {
 			t.Parallel()
 
-			f, err := os.Open(filePath)
+			file, err := os.Open(filePath)
 			if err != nil {
 				t.Fatalf("Failed to open file: %v", err)
 			}
-			defer f.Close()
+			defer file.Close()
 
-			aiff, err := Parse(f)
+			aiff, err := Parse(file)
 			if err != nil {
 				t.Fatalf("Failed to parse: %v", err)
 			}
@@ -95,25 +95,25 @@ func TestParseSyntheticAIFF(t *testing.T) {
 	// Create a minimal valid AIFF file
 	aiff := createSyntheticAIFF(t, 2, 48000, 16, 1000)
 
-	f, err := Parse(bytes.NewReader(aiff))
+	file, err := Parse(bytes.NewReader(aiff))
 	if err != nil {
 		t.Fatalf("Failed to parse: %v", err)
 	}
 
-	if f.NumChannels != 2 {
-		t.Errorf("Channels: got %d, want 2", f.NumChannels)
+	if file.NumChannels != 2 {
+		t.Errorf("Channels: got %d, want 2", file.NumChannels)
 	}
 	// Note: Sample rate encoding in test helper may not be exact, just check it's reasonable
-	if f.SampleRate < 20000 || f.SampleRate > 200000 {
-		t.Errorf("Sample rate out of range: got %v", f.SampleRate)
+	if file.SampleRate < 20000 || file.SampleRate > 200000 {
+		t.Errorf("Sample rate out of range: got %v", file.SampleRate)
 	}
 
-	if f.BitsPerSample != 16 {
-		t.Errorf("Bit depth: got %d, want 16", f.BitsPerSample)
+	if file.BitsPerSample != 16 {
+		t.Errorf("Bit depth: got %d, want 16", file.BitsPerSample)
 	}
 
-	if f.NumSamples != 1000 {
-		t.Errorf("Samples: got %d, want 1000", f.NumSamples)
+	if file.NumSamples != 1000 {
+		t.Errorf("Samples: got %d, want 1000", file.NumSamples)
 	}
 }
 
@@ -122,17 +122,17 @@ func TestParseMono(t *testing.T) {
 	t.Parallel()
 	aiff := createSyntheticAIFF(t, 1, 44100, 16, 500)
 
-	f, err := Parse(bytes.NewReader(aiff))
+	file, err := Parse(bytes.NewReader(aiff))
 	if err != nil {
 		t.Fatalf("Failed to parse: %v", err)
 	}
 
-	if f.NumChannels != 1 {
-		t.Errorf("Channels: got %d, want 1", f.NumChannels)
+	if file.NumChannels != 1 {
+		t.Errorf("Channels: got %d, want 1", file.NumChannels)
 	}
 
-	if len(f.Data) != 1 {
-		t.Errorf("Data channels: got %d, want 1", len(f.Data))
+	if len(file.Data) != 1 {
+		t.Errorf("Data channels: got %d, want 1", len(file.Data))
 	}
 }
 
@@ -141,13 +141,13 @@ func TestParse24Bit(t *testing.T) {
 	t.Parallel()
 	aiff := createSyntheticAIFF(t, 2, 96000, 24, 200)
 
-	f, err := Parse(bytes.NewReader(aiff))
+	file, err := Parse(bytes.NewReader(aiff))
 	if err != nil {
 		t.Fatalf("Failed to parse: %v", err)
 	}
 
-	if f.BitsPerSample != 24 {
-		t.Errorf("Bit depth: got %d, want 24", f.BitsPerSample)
+	if file.BitsPerSample != 24 {
+		t.Errorf("Bit depth: got %d, want 24", file.BitsPerSample)
 	}
 }
 
@@ -178,9 +178,9 @@ func TestParseMissingCOMM(t *testing.T) {
 	t.Parallel()
 	// Create AIFF with only FORM header
 	var buf bytes.Buffer
-	buf.WriteString("FORM")
-	binary.Write(&buf, binary.BigEndian, uint32(4))
-	buf.WriteString("AIFF")
+	_, _ = buf.WriteString("FORM")
+	_ = binary.Write(&buf, binary.BigEndian, uint32(4))
+	_, _ = buf.WriteString("AIFF")
 
 	_, err := Parse(&buf)
 	if err == nil {
@@ -210,13 +210,13 @@ func TestExtendedToFloat64(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			result := extendedToFloat64(tc.bytes)
-			if math.Abs(result-tc.expected) > 0.5 {
-				t.Errorf("Got %v, want %v", result, tc.expected)
+			result := extendedToFloat64(testCase.bytes)
+			if math.Abs(result-testCase.expected) > 0.5 {
+				t.Errorf("Got %v, want %v", result, testCase.expected)
 			}
 		})
 	}
@@ -238,6 +238,8 @@ func TestDuration(t *testing.T) {
 }
 
 // createSyntheticAIFF creates a minimal AIFF file for testing.
+//
+//nolint:errcheck // test helper writing to bytes.Buffer, errors impossible
 func createSyntheticAIFF(t *testing.T, channels, sampleRate, bitDepth, numSamples int) []byte {
 	t.Helper()
 
@@ -253,7 +255,7 @@ func createSyntheticAIFF(t *testing.T, channels, sampleRate, bitDepth, numSample
 	ssndSize := uint32(8 + audioDataSize)
 
 	// FORM size (AIFF type + COMM chunk + SSND chunk)
-	formSize := uint32(4 + 8 + commSize + 8 + ssndSize)
+	formSize := 4 + 8 + commSize + 8 + ssndSize
 
 	// Write FORM header
 	buf.WriteString("FORM")
@@ -302,22 +304,22 @@ func createSyntheticAIFF(t *testing.T, channels, sampleRate, bitDepth, numSample
 }
 
 // float64ToExtended converts float64 to 80-bit extended precision format.
-func float64ToExtended(f float64) []byte {
+func float64ToExtended(value float64) []byte {
 	result := make([]byte, 10)
 
-	if f == 0 {
+	if value == 0 {
 		return result
 	}
 
 	sign := byte(0)
-	if f < 0 {
+	if value < 0 {
 		sign = 0x80
-		f = -f
+		value = -value
 	}
 
 	// Get exponent and mantissa using math.Frexp
 	// Frexp returns mant in [0.5, 1) and exp such that f = mant * 2^exp
-	mant, exp := math.Frexp(f)
+	mant, exp := math.Frexp(value)
 
 	// Extended precision exponent bias is 16383
 	// Frexp returns exp for [0.5, 1), but extended format expects [1, 2)

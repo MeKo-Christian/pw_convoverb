@@ -33,6 +33,13 @@ var (
 	verbose   = flag.Bool("verbose", false, "Show progress and details")
 )
 
+var (
+	// ErrNoAIFFFiles indicates no AIFF files were found in the input directory.
+	ErrNoAIFFFiles = errors.New("no .aif files found")
+	// ErrNoConversions indicates no files were successfully converted.
+	ErrNoConversions = errors.New("no files were successfully converted")
+)
+
 func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %s [options] <input-directory> <output-file>\n\n", os.Args[0])
@@ -68,7 +75,7 @@ func run(inputDir, outputFile string) error {
 	}
 
 	if len(files) == 0 {
-		return fmt.Errorf("no .aif files found in %s", inputDir)
+		return fmt.Errorf("%w in %s", ErrNoAIFFFiles, inputDir)
 	}
 
 	if *verbose {
@@ -84,17 +91,17 @@ func run(inputDir, outputFile string) error {
 			fmt.Printf("[%d/%d] Processing: %s\n", i+1, len(files), filepath.Base(filePath))
 		}
 
-		ir, err := convertFile(filePath, inputDir)
+		impulseResponse, err := convertFile(filePath, inputDir)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: skipping %s: %v\n", filePath, err)
 			continue
 		}
 
-		lib.AddIR(ir)
+		lib.AddIR(impulseResponse)
 	}
 
 	if len(lib.IRs) == 0 {
-		return errors.New("no files were successfully converted")
+		return ErrNoConversions
 	}
 
 	// Write output file
@@ -124,18 +131,18 @@ func run(inputDir, outputFile string) error {
 func findAIFFFiles(dir string, recursive bool) ([]string, error) {
 	var files []string
 
-	walkFn := func(path string, d fs.DirEntry, err error) error {
+	walkFn := func(path string, dirEntry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip subdirectories if not recursive
-		if d.IsDir() && path != dir && !recursive {
+		if dirEntry.IsDir() && path != dir && !recursive {
 			return fs.SkipDir
 		}
 
 		// Check for AIFF files
-		if !d.IsDir() {
+		if !dirEntry.IsDir() {
 			ext := strings.ToLower(filepath.Ext(path))
 			if ext == ".aif" || ext == ".aiff" {
 				files = append(files, path)
@@ -155,13 +162,13 @@ func findAIFFFiles(dir string, recursive bool) ([]string, error) {
 
 func convertFile(filePath, baseDir string) (*irformat.ImpulseResponse, error) {
 	// Open and parse AIFF file
-	f, err := os.Open(filePath)
+	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, err
 	}
-	defer f.Close()
+	defer file.Close()
 
-	aiffFile, err := aiff.Parse(f)
+	aiffFile, err := aiff.Parse(file)
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +191,7 @@ func convertFile(filePath, baseDir string) (*irformat.ImpulseResponse, error) {
 
 	tags := inferTags(name)
 
-	ir := &irformat.ImpulseResponse{
+	impulseResponse := &irformat.ImpulseResponse{
 		Metadata: irformat.IRMetadata{
 			Name:        name,
 			Description: "",
@@ -205,7 +212,7 @@ func convertFile(filePath, baseDir string) (*irformat.ImpulseResponse, error) {
 			aiffFile.NumSamples, aiffFile.Duration())
 	}
 
-	return ir, nil
+	return impulseResponse, nil
 }
 
 // inferName extracts a clean name from the file path.

@@ -5,6 +5,15 @@ import (
 	"fmt"
 )
 
+var (
+	// ErrInvalidBlockOrder indicates the block order is outside valid range.
+	ErrInvalidBlockOrder = errors.New("invalid block order")
+	// ErrEmptyImpulseResponse indicates the impulse response is empty.
+	ErrEmptyImpulseResponse = errors.New("impulse response cannot be empty")
+	// ErrStageIndexOutOfRange indicates the stage index is out of range.
+	ErrStageIndexOutOfRange = errors.New("stage index out of range")
+)
+
 // LowLatencyConvolutionEngine implements partitioned convolution with
 // configurable latency. The IR is split into stages with exponentially
 // increasing partition sizes for efficient processing of long impulse responses.
@@ -53,18 +62,18 @@ type LowLatencyConvolutionEngine struct {
 //   - minBlockOrder=9 → 512 samples latency
 func NewLowLatencyConvolutionEngine(ir []float32, minBlockOrder, maxBlockOrder int) (*LowLatencyConvolutionEngine, error) {
 	if minBlockOrder < 6 || minBlockOrder > 12 {
-		return nil, fmt.Errorf("minBlockOrder must be between 6 and 12, got %d", minBlockOrder)
+		return nil, fmt.Errorf("%w: minBlockOrder must be between 6 and 12, got %d", ErrInvalidBlockOrder, minBlockOrder)
 	}
 
 	if maxBlockOrder < minBlockOrder {
-		return nil, fmt.Errorf("maxBlockOrder (%d) must be >= minBlockOrder (%d)", maxBlockOrder, minBlockOrder)
+		return nil, fmt.Errorf("%w: maxBlockOrder=%d minBlockOrder=%d", ErrInvalidBlockOrder, maxBlockOrder, minBlockOrder)
 	}
 
 	if len(ir) == 0 {
-		return nil, errors.New("impulse response cannot be empty")
+		return nil, ErrEmptyImpulseResponse
 	}
 
-	e := &LowLatencyConvolutionEngine{
+	engine := &LowLatencyConvolutionEngine{
 		irSize:        len(ir),
 		minBlockOrder: minBlockOrder,
 		maxBlockOrder: maxBlockOrder,
@@ -73,25 +82,25 @@ func NewLowLatencyConvolutionEngine(ir []float32, minBlockOrder, maxBlockOrder i
 	}
 
 	// Copy IR
-	e.impulseResponse = make([]float32, len(ir))
-	copy(e.impulseResponse, ir)
+	engine.impulseResponse = make([]float32, len(ir))
+	copy(engine.impulseResponse, ir)
 
 	// Calculate padded IR size and partition
-	e.irSizePadded = e.calculatePaddedIRSize()
+	engine.irSizePadded = engine.calculatePaddedIRSize()
 
 	// Partition the IR into stages
-	err := e.partitionIR()
+	err := engine.partitionIR()
 	if err != nil {
 		return nil, fmt.Errorf("failed to partition IR: %w", err)
 	}
 
 	// Build IR spectrums for all stages
-	err = e.buildIRSpectrums()
+	err = engine.buildIRSpectrums()
 	if err != nil {
 		return nil, fmt.Errorf("failed to build IR spectrums: %w", err)
 	}
 
-	return e, nil
+	return engine, nil
 }
 
 // Latency returns the current latency in samples.
@@ -252,7 +261,7 @@ func (e *LowLatencyConvolutionEngine) ProcessBlockInplace(input, output []float3
 // This implements the overlap-add convolution with partitioned stages.
 func (e *LowLatencyConvolutionEngine) ProcessBlock(input, output []float32) error {
 	if len(input) != len(output) {
-		return fmt.Errorf("input and output buffers must have same length: %d != %d", len(input), len(output))
+		return fmt.Errorf("%w: input=%d output=%d", ErrBufferLengthMismatch, len(input), len(output))
 	}
 
 	currentPos := 0
@@ -382,7 +391,7 @@ func (e *LowLatencyConvolutionEngine) StageCount() int {
 // StageInfo returns information about a specific stage.
 func (e *LowLatencyConvolutionEngine) StageInfo(index int) (fftSize, blockCount int, err error) {
 	if index < 0 || index >= len(e.stages) {
-		return 0, 0, fmt.Errorf("stage index %d out of range [0, %d)", index, len(e.stages))
+		return 0, 0, fmt.Errorf("%w: index=%d max=%d", ErrStageIndexOutOfRange, index, len(e.stages))
 	}
 
 	stage := e.stages[index]

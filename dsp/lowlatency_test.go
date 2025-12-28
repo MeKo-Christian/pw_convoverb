@@ -83,22 +83,22 @@ func TestNewLowLatencyConvolutionEngine(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tableTest := range tests {
+		t.Run(tableTest.name, func(t *testing.T) {
 			t.Parallel()
 
 			var ir []float32
-			if tt.irLen > 0 {
-				ir = make([]float32, tt.irLen)
+			if tableTest.irLen > 0 {
+				ir = make([]float32, tableTest.irLen)
 				// Simple exponential decay
 				for i := range ir {
 					ir[i] = float32(math.Exp(-float64(i) / 1000.0))
 				}
 			}
 
-			engine, err := NewLowLatencyConvolutionEngine(ir, tt.minBlockOrder, tt.maxBlockOrder)
+			engine, err := NewLowLatencyConvolutionEngine(ir, tableTest.minBlockOrder, tableTest.maxBlockOrder)
 
-			if tt.wantErr {
+			if tableTest.wantErr {
 				if err == nil {
 					t.Errorf("expected error but got nil")
 				}
@@ -110,12 +110,12 @@ func TestNewLowLatencyConvolutionEngine(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if engine.Latency() != tt.wantLatency {
-				t.Errorf("latency = %d, want %d", engine.Latency(), tt.wantLatency)
+			if engine.Latency() != tableTest.wantLatency {
+				t.Errorf("latency = %d, want %d", engine.Latency(), tableTest.wantLatency)
 			}
 
-			if engine.IRSize() != tt.irLen {
-				t.Errorf("IRSize = %d, want %d", engine.IRSize(), tt.irLen)
+			if engine.IRSize() != tableTest.irLen {
+				t.Errorf("IRSize = %d, want %d", engine.IRSize(), tableTest.irLen)
 			}
 
 			if engine.StageCount() == 0 {
@@ -413,16 +413,16 @@ func BenchmarkLowLatencyConvolution(b *testing.B) {
 		{"latency256_block256", 8, 256},
 	}
 
-	for _, bm := range benchmarks {
-		b.Run(bm.name, func(b *testing.B) {
-			engine, err := NewLowLatencyConvolutionEngine(ir, bm.minBlockOrder, 9)
+	for _, benchmark := range benchmarks {
+		b.Run(benchmark.name, func(b *testing.B) {
+			engine, err := NewLowLatencyConvolutionEngine(ir, benchmark.minBlockOrder, 9)
 			if err != nil {
 				b.Fatalf("failed to create engine: %v", err)
 			}
 
-			input := make([]float32, bm.blockSize)
+			input := make([]float32, benchmark.blockSize)
 
-			output := make([]float32, bm.blockSize)
+			output := make([]float32, benchmark.blockSize)
 			for i := range input {
 				input[i] = float32(math.Sin(float64(i) * 0.1))
 			}

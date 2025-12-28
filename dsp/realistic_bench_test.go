@@ -112,26 +112,26 @@ func BenchmarkRealisticLowLatencyEngine_Stereo(b *testing.B) {
 		{"ir2.0s_block256_lat256_max4096", 2.0, 256, 8, 12},
 	}
 
-	for _, tc := range testCases {
-		b.Run(tc.name, func(b *testing.B) {
-			irData := generateRealisticIR(sampleRate, tc.seconds, channels)
+	for _, testCase := range testCases {
+		b.Run(testCase.name, func(b *testing.B) {
+			irData := generateRealisticIR(sampleRate, testCase.seconds, channels)
 
-			left, err := NewLowLatencyConvolutionEngine(irData[0], tc.minBlockOrder, tc.maxBlockOrder)
+			left, err := NewLowLatencyConvolutionEngine(irData[0], testCase.minBlockOrder, testCase.maxBlockOrder)
 			if err != nil {
 				b.Fatalf("failed to create left engine: %v", err)
 			}
 
-			right, err := NewLowLatencyConvolutionEngine(irData[1], tc.minBlockOrder, tc.maxBlockOrder)
+			right, err := NewLowLatencyConvolutionEngine(irData[1], testCase.minBlockOrder, testCase.maxBlockOrder)
 			if err != nil {
 				b.Fatalf("failed to create right engine: %v", err)
 			}
 
-			in := generateTestInput(tc.blockSize)
-			outL := make([]float32, tc.blockSize)
-			outR := make([]float32, tc.blockSize)
+			in := generateTestInput(testCase.blockSize)
+			outL := make([]float32, testCase.blockSize)
+			outR := make([]float32, testCase.blockSize)
 
 			b.ReportAllocs()
-			b.SetBytes(int64(tc.blockSize * channels * 4))
+			b.SetBytes(int64(testCase.blockSize * channels * 4))
 			b.ResetTimer()
 
 			for range b.N {
@@ -157,24 +157,24 @@ func BenchmarkRealisticConvolutionReverb_ProcessBlock_Allocations(b *testing.B) 
 	const seconds = 2.0
 	const blockSize = 256
 
-	r := NewConvolutionReverb(sampleRate, channels)
+	reverb := NewConvolutionReverb(sampleRate, channels)
 
 	// Set typical config (matches main.go defaults).
-	r.engineType = EngineTypeLowLatency
-	r.minBlockOrder = 8 // 256
-	r.maxBlockOrder = 9 // 512
+	reverb.engineType = EngineTypeLowLatency
+	reverb.minBlockOrder = 8 // 256
+	reverb.maxBlockOrder = 9 // 512
 
 	irData := generateRealisticIR(sampleRate, seconds, channels)
 
-	r.mu.Lock()
+	reverb.mu.Lock()
 
-	err := r.applyImpulseResponseUnlocked(irData, sampleRate)
+	err := reverb.applyImpulseResponseUnlocked(irData, sampleRate)
 	if err != nil {
-		r.mu.Unlock()
+		reverb.mu.Unlock()
 		b.Fatalf("failed to apply IR: %v", err)
 	}
 
-	r.mu.Unlock()
+	reverb.mu.Unlock()
 
 	in := generateTestInput(blockSize)
 	outL := make([]float32, blockSize)
@@ -185,7 +185,7 @@ func BenchmarkRealisticConvolutionReverb_ProcessBlock_Allocations(b *testing.B) 
 	b.ResetTimer()
 
 	for range b.N {
-		r.ProcessBlock(in, outL, 0)
-		r.ProcessBlock(in, outR, 1)
+		reverb.ProcessBlock(in, outL, 0)
+		reverb.ProcessBlock(in, outR, 1)
 	}
 }

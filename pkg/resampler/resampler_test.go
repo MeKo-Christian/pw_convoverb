@@ -90,7 +90,7 @@ func TestResample_Upsample2x(t *testing.T) {
 func TestResample_ArbitraryRatio_88200_to_48000(t *testing.T) {
 	t.Parallel()
 
-	r := New()
+	resampler := New()
 	// This is the actual use case: 88.2kHz IR to 48kHz playback
 	inputLen := 4096
 
@@ -99,7 +99,7 @@ func TestResample_ArbitraryRatio_88200_to_48000(t *testing.T) {
 		input[i] = float32(math.Sin(2 * math.Pi * float64(i) / float64(inputLen)))
 	}
 
-	result, err := r.Resample(input, 88200, 48000)
+	result, err := resampler.Resample(input, 88200, 48000)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestResample_PreservesLowFrequencyContent(t *testing.T) {
 func TestResample_EnergyPreservation(t *testing.T) {
 	t.Parallel()
 
-	r := New()
+	resampler := New()
 
 	// Create a test signal
 	inputLen := 2048
@@ -167,7 +167,7 @@ func TestResample_EnergyPreservation(t *testing.T) {
 	inputEnergy := calculateRMS(input)
 
 	// Resample down
-	result, err := r.Resample(input, 88200, 48000)
+	result, err := resampler.Resample(input, 88200, 48000)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestResample_EnergyPreservation(t *testing.T) {
 func TestResampleMultiChannel(t *testing.T) {
 	t.Parallel()
 
-	r := New()
+	resampler := New()
 
 	// Create stereo input
 	inputLen := 512
@@ -201,7 +201,7 @@ func TestResampleMultiChannel(t *testing.T) {
 		}
 	}
 
-	result, err := r.ResampleMultiChannel(input, 88200, 48000)
+	result, err := resampler.ResampleMultiChannel(input, 88200, 48000)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

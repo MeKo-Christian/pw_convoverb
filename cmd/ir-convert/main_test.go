@@ -54,13 +54,13 @@ func TestConvertAssetsDirectory(t *testing.T) {
 	}
 
 	// Read library and verify
-	f, err := os.Open(outputFile)
+	file, err := os.Open(outputFile)
 	if err != nil {
 		t.Fatalf("Failed to open output file: %v", err)
 	}
-	defer f.Close()
+	defer file.Close()
 
-	reader, err := irformat.NewReader(f)
+	reader, err := irformat.NewReader(file)
 	if err != nil {
 		t.Fatalf("Failed to read library: %v", err)
 	}
@@ -75,28 +75,28 @@ func TestConvertAssetsDirectory(t *testing.T) {
 	// Verify each IR can be loaded
 	entries := reader.ListIRs()
 	for i, entry := range entries {
-		ir, err := reader.LoadIR(i)
+		impulseResponse, err := reader.LoadIR(i)
 		if err != nil {
 			t.Errorf("Failed to load IR %d (%s): %v", i, entry.Name, err)
 			continue
 		}
 
 		// Validate IR data
-		if ir.Metadata.SampleRate <= 0 {
-			t.Errorf("IR %d has invalid sample rate: %v", i, ir.Metadata.SampleRate)
+		if impulseResponse.Metadata.SampleRate <= 0 {
+			t.Errorf("IR %d has invalid sample rate: %v", i, impulseResponse.Metadata.SampleRate)
 		}
 
-		if ir.Metadata.Channels <= 0 {
-			t.Errorf("IR %d has invalid channel count: %d", i, ir.Metadata.Channels)
+		if impulseResponse.Metadata.Channels <= 0 {
+			t.Errorf("IR %d has invalid channel count: %d", i, impulseResponse.Metadata.Channels)
 		}
 
-		if len(ir.Audio.Data) != ir.Metadata.Channels {
-			t.Errorf("IR %d audio channels mismatch: %d vs %d", i, len(ir.Audio.Data), ir.Metadata.Channels)
+		if len(impulseResponse.Audio.Data) != impulseResponse.Metadata.Channels {
+			t.Errorf("IR %d audio channels mismatch: %d vs %d", i, len(impulseResponse.Audio.Data), impulseResponse.Metadata.Channels)
 		}
 
-		for ch, data := range ir.Audio.Data {
-			if len(data) != ir.Metadata.Length {
-				t.Errorf("IR %d channel %d length mismatch: %d vs %d", i, ch, len(data), ir.Metadata.Length)
+		for ch, data := range impulseResponse.Audio.Data {
+			if len(data) != impulseResponse.Metadata.Length {
+				t.Errorf("IR %d channel %d length mismatch: %d vs %d", i, ch, len(data), impulseResponse.Metadata.Length)
 			}
 		}
 	}
@@ -116,10 +116,10 @@ func TestInferName(t *testing.T) {
 		{"/some/dir/My_Great_IR.aif", "My Great IR"},
 	}
 
-	for _, tc := range tests {
-		result := inferName(tc.input)
-		if result != tc.expected {
-			t.Errorf("inferName(%q): got %q, want %q", tc.input, result, tc.expected)
+	for _, testCase := range tests {
+		result := inferName(testCase.input)
+		if result != testCase.expected {
+			t.Errorf("inferName(%q): got %q, want %q", testCase.input, result, testCase.expected)
 		}
 	}
 }
@@ -138,10 +138,10 @@ func TestInferCategory(t *testing.T) {
 		{"/base/Plates/Large/file.aif", "/base", "Plates"},
 	}
 
-	for _, tc := range tests {
-		result := inferCategory(tc.filePath, tc.baseDir)
-		if result != tc.expected {
-			t.Errorf("inferCategory(%q, %q): got %q, want %q", tc.filePath, tc.baseDir, result, tc.expected)
+	for _, testCase := range tests {
+		result := inferCategory(testCase.filePath, testCase.baseDir)
+		if result != testCase.expected {
+			t.Errorf("inferCategory(%q, %q): got %q, want %q", testCase.filePath, testCase.baseDir, result, testCase.expected)
 		}
 	}
 }
@@ -160,11 +160,11 @@ func TestInferTags(t *testing.T) {
 		{"Unknown IR", nil},
 	}
 
-	for _, tc := range tests {
-		result := inferTags(tc.name)
+	for _, testCase := range tests {
+		result := inferTags(testCase.name)
 
 		// Check all expected tags are present
-		for _, exp := range tc.expected {
+		for _, exp := range testCase.expected {
 			found := false
 
 			for _, tag := range result {
@@ -175,7 +175,7 @@ func TestInferTags(t *testing.T) {
 			}
 
 			if !found {
-				t.Errorf("inferTags(%q): missing expected tag %q", tc.name, exp)
+				t.Errorf("inferTags(%q): missing expected tag %q", testCase.name, exp)
 			}
 		}
 	}

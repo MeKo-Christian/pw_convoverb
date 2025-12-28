@@ -26,14 +26,14 @@ func TestFloat32ToF16ToFloat32RoundTrip(t *testing.T) {
 		{"NaN", float32(math.NaN())},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tableTest := range tests {
+		t.Run(tableTest.name, func(t *testing.T) {
 			t.Parallel()
 
-			f16bits := float32ToF16(tt.input)
+			f16bits := float32ToF16(tableTest.input)
 			result := f16ToFloat32(f16bits)
 
-			if math.IsNaN(float64(tt.input)) {
+			if math.IsNaN(float64(tableTest.input)) {
 				if !math.IsNaN(float64(result)) {
 					t.Errorf("expected NaN, got %v", result)
 				}
@@ -41,9 +41,9 @@ func TestFloat32ToF16ToFloat32RoundTrip(t *testing.T) {
 				return
 			}
 
-			if math.IsInf(float64(tt.input), 0) {
+			if math.IsInf(float64(tableTest.input), 0) {
 				expectedSign := 1
-				if math.Signbit(float64(tt.input)) {
+				if math.Signbit(float64(tableTest.input)) {
 					expectedSign = -1
 				}
 
@@ -54,7 +54,7 @@ func TestFloat32ToF16ToFloat32RoundTrip(t *testing.T) {
 				return
 			}
 
-			absInput := tt.input
+			absInput := tableTest.input
 			if absInput < 0 {
 				absInput = -absInput
 			}
@@ -66,22 +66,22 @@ func TestFloat32ToF16ToFloat32RoundTrip(t *testing.T) {
 			}
 
 			if absInput > 1e-10 {
-				relErr := (result - tt.input) / tt.input
+				relErr := (result - tableTest.input) / tableTest.input
 				if relErr < 0 {
 					relErr = -relErr
 				}
 
 				if relErr > 0.01 {
-					t.Errorf("relative error too large: input=%v, output=%v, relErr=%v", tt.input, result, relErr)
+					t.Errorf("relative error too large: input=%v, output=%v, relErr=%v", tableTest.input, result, relErr)
 				}
 			} else {
-				absErr := result - tt.input
+				absErr := result - tableTest.input
 				if absErr < 0 {
 					absErr = -absErr
 				}
 
 				if absErr > 1e-10 {
-					t.Errorf("absolute error too large: input=%v, output=%v, err=%v", tt.input, result, absErr)
+					t.Errorf("absolute error too large: input=%v, output=%v, err=%v", tableTest.input, result, absErr)
 				}
 			}
 		})
@@ -244,15 +244,15 @@ func TestSpecialValuesConversion(t *testing.T) {
 		{"NaN", float32(math.NaN()), func(v float32) bool { return math.IsNaN(float64(v)) }},
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, tableTest := range tests {
+		t.Run(tableTest.name, func(t *testing.T) {
 			t.Parallel()
 
-			f16bits := float32ToF16(tt.value)
+			f16bits := float32ToF16(tableTest.value)
 
 			result := f16ToFloat32(f16bits)
-			if !tt.checkFn(result) {
-				t.Errorf("failed check for %v, got %v", tt.value, result)
+			if !tableTest.checkFn(result) {
+				t.Errorf("failed check for %v, got %v", tableTest.value, result)
 			}
 		})
 	}

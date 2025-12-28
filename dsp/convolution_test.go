@@ -398,7 +398,10 @@ func TestLoadImpulseResponseFromLibrary(t *testing.T) {
 	}
 
 	// Read back and verify
-	buf.Seek(0, io.SeekStart)
+	_, err = buf.Seek(0, io.SeekStart)
+	if err != nil {
+		t.Fatalf("Failed to seek: %v", err)
+	}
 
 	reader, err := irformat.NewReader(buf)
 	if err != nil {
@@ -484,7 +487,10 @@ func TestLoadIRByNameDSP(t *testing.T) {
 	}
 
 	// Read back
-	buf.Seek(0, io.SeekStart)
+	_, err = buf.Seek(0, io.SeekStart)
+	if err != nil {
+		t.Fatalf("Failed to seek: %v", err)
+	}
 
 	reader, err := irformat.NewReader(buf)
 	if err != nil {

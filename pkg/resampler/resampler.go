@@ -114,16 +114,16 @@ func (r *Resampler) Resample(data []float32, srcRate, dstRate float64) ([]float3
 
 		for j := startIdx; j <= endIdx; j++ {
 			// Distance from the ideal input position
-			d := inputPos - float64(j)
+			dist := inputPos - float64(j)
 
 			// Apply the appropriate scaling for anti-aliasing
-			scaledD := d * filterRatio
+			scaledD := dist * filterRatio
 
 			// Sinc value
 			s := sinc(scaledD)
 
 			// Window value (normalized to filter width)
-			w := blackmanWindow(d / windowRadius)
+			w := blackmanWindow(dist / windowRadius)
 
 			// Combined weight
 			weight := s * w

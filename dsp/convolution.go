@@ -77,6 +77,15 @@ const (
 	EngineTypeLowLatency
 )
 
+var (
+	// ErrBufferLengthMismatch indicates input and output buffers have different lengths.
+	ErrBufferLengthMismatch = errors.New("buffer length mismatch")
+	// ErrEmptyIRData indicates the IR data is empty.
+	ErrEmptyIRData = errors.New("IR data is empty")
+	// ErrIRIndexOutOfRange indicates the IR index is out of valid range.
+	ErrIRIndexOutOfRange = errors.New("IR index out of range")
+)
+
 // ConvolutionReverb implements a convolution-based reverb processor.
 type ConvolutionReverb struct {
 	mu sync.RWMutex
@@ -194,8 +203,8 @@ func (r *ConvolutionReverb) GetLatency() int {
 }
 
 // NewOverlapAddEngine creates a new overlap-add engine for a given impulse response.
-func NewOverlapAddEngine(ir []float32, blockSize int) *OverlapAddEngine {
-	irLen := len(ir)
+func NewOverlapAddEngine(impulseResponse []float32, blockSize int) *OverlapAddEngine {
+	irLen := len(impulseResponse)
 
 	fftSize := nextPowerOf2(2*blockSize - 1)
 	if fftSize < irLen {
@@ -222,7 +231,7 @@ func NewOverlapAddEngine(ir []float32, blockSize int) *OverlapAddEngine {
 
 	// Pre-compute FFT of IR (zero-padded to fftSize)
 	irPadded := make([]float32, fftSize)
-	copy(irPadded, ir)
+	copy(irPadded, impulseResponse)
 
 	// Forward transform of IR
 	irComplex := make([]complex64, fftSize)
@@ -307,7 +316,7 @@ func (e *OverlapAddEngine) ProcessBlock(input []float32) []float32 {
 // It processes input samples and writes results to output.
 func (e *OverlapAddEngine) ProcessBlockInplace(input, output []float32) error {
 	if len(input) != len(output) {
-		return fmt.Errorf("input and output must have same length: %d != %d", len(input), len(output))
+		return fmt.Errorf("%w: input=%d output=%d", ErrBufferLengthMismatch, len(input), len(output))
 	}
 
 	result := e.ProcessBlock(input)
@@ -405,7 +414,7 @@ func (r *ConvolutionReverb) applyImpulseResponse(irData [][]float32, irSampleRat
 // Caller must hold r.mu lock.
 func (r *ConvolutionReverb) applyImpulseResponseUnlocked(irData [][]float32, irSampleRate float64) error {
 	if len(irData) == 0 {
-		return errors.New("IR data is empty")
+		return ErrEmptyIRData
 	}
 
 	// Store original IR for future resampling on sample rate changes
@@ -559,7 +568,7 @@ func (r *ConvolutionReverb) SwitchIR(data []byte, irIndex int) (string, error) {
 
 	entries := irReader.ListIRs()
 	if irIndex < 0 || irIndex >= len(entries) {
-		return "", fmt.Errorf("IR index %d out of range (0-%d)", irIndex, len(entries)-1)
+		return "", fmt.Errorf("%w: index=%d max=%d", ErrIRIndexOutOfRange, irIndex, len(entries)-1)
 	}
 
 	ir, err := irReader.LoadIR(irIndex)

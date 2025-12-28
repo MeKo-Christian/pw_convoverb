@@ -1,10 +1,14 @@
 package dsp
 
 import (
+	"errors"
 	"fmt"
 
 	algofft "github.com/MeKo-Christian/algo-fft"
 )
+
+// ErrInputBufferTooSmall indicates the input buffer is smaller than required.
+var ErrInputBufferTooSmall = errors.New("input buffer too small")
 
 // ConvolutionStage represents a single partition stage in the
 // low-latency convolution algorithm. Each stage processes IR blocks
@@ -102,7 +106,7 @@ func (s *ConvolutionStage) Count() int {
 // The IR layout for each block:
 //   - First half: zeros (for proper linear convolution via FFT)
 //   - Second half: IR data from [outputPos + block*fftSizeHalf]
-func (s *ConvolutionStage) CalculateIRSpectrums(ir []float32) error {
+func (s *ConvolutionStage) CalculateIRSpectrums(impulseResponse []float32) error {
 	spectrumLen := s.fftSizeHalf + 1
 
 	// Calculate modulo mask for scheduling
@@ -126,14 +130,14 @@ func (s *ConvolutionStage) CalculateIRSpectrums(ir []float32) error {
 		srcStart := s.outputPos + blockIdx*s.fftSizeHalf
 
 		srcEnd := srcStart + s.fftSizeHalf
-		if srcEnd > len(ir) {
-			srcEnd = len(ir)
+		if srcEnd > len(impulseResponse) {
+			srcEnd = len(impulseResponse)
 		}
 
 		// Copy available IR data
 		copied := 0
-		if srcStart < len(ir) {
-			copied = copy(tempIR[s.fftSizeHalf:], ir[srcStart:srcEnd])
+		if srcStart < len(impulseResponse) {
+			copied = copy(tempIR[s.fftSizeHalf:], impulseResponse[srcStart:srcEnd])
 		}
 
 		// Zero-pad remaining if IR is shorter
@@ -167,7 +171,7 @@ func (s *ConvolutionStage) PerformConvolution(signalIn, signalOut []float32) err
 		// Extract the last fftSize samples from input buffer
 		inputStart := len(signalIn) - s.fftSize
 		if inputStart < 0 {
-			return fmt.Errorf("input buffer too small: need %d samples, got %d", s.fftSize, len(signalIn))
+			return fmt.Errorf("%w: need=%d got=%d", ErrInputBufferTooSmall, s.fftSize, len(signalIn))
 		}
 
 		// Forward FFT of input signal

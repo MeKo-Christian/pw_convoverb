@@ -63,16 +63,16 @@ func (w *Writer) WriteHeader(irCount int) error {
 
 // WriteIR writes a single impulse response to the file.
 // Must be called after WriteHeader and before Close.
-func (w *Writer) WriteIR(ir *ImpulseResponse) error {
+func (w *Writer) WriteIR(impulseResponse *ImpulseResponse) error {
 	// Record the offset for this IR
 	w.irOffsets = append(w.irOffsets, w.currentPos)
-	w.irMetas = append(w.irMetas, ir.Metadata)
+	w.irMetas = append(w.irMetas, impulseResponse.Metadata)
 
 	// Build metadata sub-chunk
-	metaData := w.buildMetadataSubChunk(&ir.Metadata)
+	metaData := w.buildMetadataSubChunk(&impulseResponse.Metadata)
 
 	// Build audio sub-chunk
-	audioData := w.buildAudioSubChunk(&ir.Audio)
+	audioData := w.buildAudioSubChunk(&impulseResponse.Audio)
 
 	// Calculate total IR chunk size (metadata + audio, excluding chunk header)
 	chunkSize := uint64(len(metaData) + len(audioData))
