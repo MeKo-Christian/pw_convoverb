@@ -154,7 +154,7 @@ func findAIFFFiles(dir string, recursive bool) ([]string, error) {
 
 	err := filepath.WalkDir(dir, walkFn)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to walk directory: %w", err)
 	}
 
 	return files, nil
@@ -164,13 +164,13 @@ func convertFile(filePath, baseDir string) (*irformat.ImpulseResponse, error) {
 	// Open and parse AIFF file
 	file, err := os.Open(filePath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
 	}
 	defer file.Close()
 
 	aiffFile, err := aiff.Parse(file)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse AIFF file %s: %w", filePath, err)
 	}
 
 	// Get audio data

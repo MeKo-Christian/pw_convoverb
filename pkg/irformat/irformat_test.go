@@ -157,7 +157,7 @@ func TestWriteReadSingleIR(t *testing.T) {
 func TestWriteReadMultipleIRs(t *testing.T) {
 	t.Parallel()
 
-	irs := []*ImpulseResponse{
+	impulseResponses := []*ImpulseResponse{
 		{
 			Metadata: IRMetadata{
 				Name:       "IR 1",
@@ -192,7 +192,7 @@ func TestWriteReadMultipleIRs(t *testing.T) {
 
 	// Write library
 	lib := NewIRLibrary()
-	for _, ir := range irs {
+	for _, ir := range impulseResponses {
 		lib.AddIR(ir)
 	}
 
@@ -209,25 +209,25 @@ func TestWriteReadMultipleIRs(t *testing.T) {
 		t.Fatalf("ReadLibrary failed: %v", err)
 	}
 
-	if len(loadedLib.IRs) != len(irs) {
-		t.Fatalf("IR count mismatch: got %d, want %d", len(loadedLib.IRs), len(irs))
+	if len(loadedLib.IRs) != len(impulseResponses) {
+		t.Fatalf("IR count mismatch: got %d, want %d", len(loadedLib.IRs), len(impulseResponses))
 	}
 
-	for i, ir := range irs {
+	for i, impulseResponse := range impulseResponses {
 		loadedIR := loadedLib.IRs[i]
-		if loadedIR.Metadata.Name != ir.Metadata.Name {
-			t.Errorf("IR %d name mismatch: got %q, want %q", i, loadedIR.Metadata.Name, ir.Metadata.Name)
+		if loadedIR.Metadata.Name != impulseResponse.Metadata.Name {
+			t.Errorf("IR %d name mismatch: got %q, want %q", i, loadedIR.Metadata.Name, impulseResponse.Metadata.Name)
 		}
 
-		if loadedIR.Metadata.Category != ir.Metadata.Category {
-			t.Errorf("IR %d category mismatch: got %q, want %q", i, loadedIR.Metadata.Category, ir.Metadata.Category)
+		if loadedIR.Metadata.Category != impulseResponse.Metadata.Category {
+			t.Errorf("IR %d category mismatch: got %q, want %q", i, loadedIR.Metadata.Category, impulseResponse.Metadata.Category)
 		}
 
-		if loadedIR.Metadata.Channels != ir.Metadata.Channels {
-			t.Errorf("IR %d channels mismatch: got %d, want %d", i, loadedIR.Metadata.Channels, ir.Metadata.Channels)
+		if loadedIR.Metadata.Channels != impulseResponse.Metadata.Channels {
+			t.Errorf("IR %d channels mismatch: got %d, want %d", i, loadedIR.Metadata.Channels, impulseResponse.Metadata.Channels)
 		}
 
-		verifyAudioData(t, ir.Audio.Data, loadedIR.Audio.Data)
+		verifyAudioData(t, impulseResponse.Audio.Data, loadedIR.Audio.Data)
 	}
 }
 
@@ -393,7 +393,7 @@ func TestInvalidIndex(t *testing.T) {
 func TestEmptyStrings(t *testing.T) {
 	t.Parallel()
 
-	ir := &ImpulseResponse{
+	impulseResponse := &ImpulseResponse{
 		Metadata: IRMetadata{
 			Name:        "",
 			Description: "",
@@ -407,7 +407,7 @@ func TestEmptyStrings(t *testing.T) {
 	}
 
 	buf := newMemFile()
-	if err := WriteLibrary(buf, &IRLibrary{Version: CurrentVersion, IRs: []*ImpulseResponse{ir}}); err != nil {
+	if err := WriteLibrary(buf, &IRLibrary{Version: CurrentVersion, IRs: []*ImpulseResponse{impulseResponse}}); err != nil {
 		t.Fatalf("WriteLibrary failed: %v", err)
 	}
 
@@ -436,19 +436,19 @@ func TestEmptyStrings(t *testing.T) {
 func TestDuration(t *testing.T) {
 	t.Parallel()
 
-	ir := NewImpulseResponse("Test", 48000, 2, [][]float32{
+	impulseResponse := NewImpulseResponse("Test", 48000, 2, [][]float32{
 		make([]float32, 96000),
 		make([]float32, 96000),
 	})
 
-	duration := ir.Duration()
+	duration := impulseResponse.Duration()
 	if math.Abs(duration-2.0) > 0.0001 {
 		t.Errorf("expected duration 2.0s, got %v", duration)
 	}
 
 	// Test zero sample rate
-	ir.Metadata.SampleRate = 0
-	if ir.Duration() != 0 {
+	impulseResponse.Metadata.SampleRate = 0
+	if impulseResponse.Duration() != 0 {
 		t.Errorf("expected 0 duration for zero sample rate")
 	}
 }

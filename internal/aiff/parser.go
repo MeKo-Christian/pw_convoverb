@@ -145,6 +145,56 @@ func Parse(r io.Reader) (*File, error) {
 	return file, nil
 }
 
+// extendedToFloat64 converts an 80-bit IEEE 754 extended precision float to float64.
+// AIFF stores sample rate in this format (10 bytes).
+func extendedToFloat64(byteBuffer []byte) float64 {
+	if len(byteBuffer) != 10 {
+		return 0
+	}
+
+	// Extract sign and exponent
+	sign := (byteBuffer[0] >> 7) & 1
+	exponent := int(binary.BigEndian.Uint16(byteBuffer[0:2])) & 0x7FFF
+
+	// Extract mantissa (64 bits)
+	mantissa := binary.BigEndian.Uint64(byteBuffer[2:10])
+
+	// Handle special cases
+	if exponent == 0 {
+		if mantissa == 0 {
+			return 0
+		}
+		// Denormalized number - not common for sample rates
+		return 0
+	}
+
+	if exponent == 0x7FFF {
+		// Infinity or NaN
+		return math.Inf(1)
+	}
+
+	// Convert to float64
+	// Extended precision has explicit integer bit, float64 has implicit
+	// Exponent bias: extended = 16383, double = 1023
+	fval := float64(mantissa) / float64(1<<63)
+	fval = math.Ldexp(fval, exponent-16383+1)
+
+	if sign == 1 {
+		fval = -fval
+	}
+
+	return fval
+}
+
+// Duration returns the duration of the audio file in seconds.
+func (f *File) Duration() float64 {
+	if f.SampleRate <= 0 {
+		return 0
+	}
+
+	return float64(f.NumSamples) / f.SampleRate
+}
+
 // parseCOMM parses the COMM (Common) chunk.
 func (f *File) parseCOMM(r io.Reader, size uint32, formType string) error {
 	// Basic COMM chunk is 18 bytes
@@ -201,14 +251,14 @@ func (f *File) parseCOMM(r io.Reader, size uint32, formType string) error {
 }
 
 // parseSSND parses the SSND (Sound Data) chunk and returns raw audio bytes.
-func (f *File) parseSSND(r io.Reader, size uint32) ([]byte, error) {
+func (f *File) parseSSND(reader io.Reader, size uint32) ([]byte, error) {
 	if size < 8 {
 		return nil, fmt.Errorf("%w: SSND chunk too small", ErrInvalidFile)
 	}
 
 	// Read offset and block size
 	var header [8]byte
-	if _, err := io.ReadFull(r, header[:]); err != nil {
+	if _, err := io.ReadFull(reader, header[:]); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidFile, err)
 	}
 
@@ -217,7 +267,7 @@ func (f *File) parseSSND(r io.Reader, size uint32) ([]byte, error) {
 
 	// Skip offset bytes if present
 	if offset > 0 {
-		if _, err := io.CopyN(io.Discard, r, int64(offset)); err != nil {
+		if _, err := io.CopyN(io.Discard, reader, int64(offset)); err != nil {
 			return nil, fmt.Errorf("%w: %w", ErrInvalidFile, err)
 		}
 	}
@@ -226,7 +276,7 @@ func (f *File) parseSSND(r io.Reader, size uint32) ([]byte, error) {
 	dataSize := size - 8 - offset
 
 	data := make([]byte, dataSize)
-	if _, err := io.ReadFull(r, data); err != nil {
+	if _, err := io.ReadFull(reader, data); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidFile, err)
 	}
 
@@ -297,54 +347,4 @@ func (f *File) decodeAudio(data []byte) error {
 	}
 
 	return nil
-}
-
-// extendedToFloat64 converts an 80-bit IEEE 754 extended precision float to float64.
-// AIFF stores sample rate in this format (10 bytes).
-func extendedToFloat64(byteBuffer []byte) float64 {
-	if len(byteBuffer) != 10 {
-		return 0
-	}
-
-	// Extract sign and exponent
-	sign := (byteBuffer[0] >> 7) & 1
-	exponent := int(binary.BigEndian.Uint16(byteBuffer[0:2])) & 0x7FFF
-
-	// Extract mantissa (64 bits)
-	mantissa := binary.BigEndian.Uint64(byteBuffer[2:10])
-
-	// Handle special cases
-	if exponent == 0 {
-		if mantissa == 0 {
-			return 0
-		}
-		// Denormalized number - not common for sample rates
-		return 0
-	}
-
-	if exponent == 0x7FFF {
-		// Infinity or NaN
-		return math.Inf(1)
-	}
-
-	// Convert to float64
-	// Extended precision has explicit integer bit, float64 has implicit
-	// Exponent bias: extended = 16383, double = 1023
-	fval := float64(mantissa) / float64(1<<63)
-	fval = math.Ldexp(fval, exponent-16383+1)
-
-	if sign == 1 {
-		fval = -fval
-	}
-
-	return fval
-}
-
-// Duration returns the duration of the audio file in seconds.
-func (f *File) Duration() float64 {
-	if f.SampleRate <= 0 {
-		return 0
-	}
-
-	return float64(f.NumSamples) / f.SampleRate
 }

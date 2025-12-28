@@ -204,7 +204,7 @@ func main() {
 
 	// Configure latency before loading IR
 	// Convert samples to block order: 64=6, 128=7, 256=8, 512=9
-	blockOrder := 8 // Default to 256 samples
+	var blockOrder int
 	switch *latency {
 	case 64:
 		blockOrder = 6

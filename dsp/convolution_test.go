@@ -5,8 +5,9 @@ import (
 	"math"
 	"testing"
 
-	algofft "github.com/MeKo-Christian/algo-fft"
 	"pw-convoverb/pkg/irformat"
+
+	algofft "github.com/MeKo-Christian/algo-fft"
 )
 
 // memFile is an in-memory file that supports io.ReadWriteSeeker for testing.
@@ -200,13 +201,13 @@ func TestOverlapAddEngine(t *testing.T) {
 	// Create a simple impulse response (short to avoid slow FFT)
 	irLength := 16
 
-	ir := make([]float32, irLength)
+	impulseResponse := make([]float32, irLength)
 	for i := range irLength {
-		ir[i] = float32(0.9 * math.Pow(0.95, float64(i)))
+		impulseResponse[i] = float32(0.9 * math.Pow(0.95, float64(i)))
 	}
 
 	// Create engine with 8-sample blocks
-	engine := NewOverlapAddEngine(ir, 8)
+	engine := NewOverlapAddEngine(impulseResponse, 8)
 
 	if engine == nil {
 		t.Fatal("NewOverlapAddEngine returned nil")

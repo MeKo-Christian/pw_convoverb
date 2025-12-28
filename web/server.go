@@ -152,13 +152,20 @@ func (s *Server) Start() error {
 
 	slog.Info("Web server starting", "port", s.port, "url", fmt.Sprintf("http://localhost:%d", s.port))
 
-	return s.httpServer.ListenAndServe()
+	if err := s.httpServer.ListenAndServe(); err != nil {
+		return fmt.Errorf("failed to start HTTP server: %w", err)
+	}
+
+	return nil
 }
 
 // Shutdown gracefully shuts down the server.
 func (s *Server) Shutdown(ctx context.Context) error {
 	if s.httpServer != nil {
-		return s.httpServer.Shutdown(ctx)
+		err := s.httpServer.Shutdown(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to shutdown HTTP server: %w", err)
+		}
 	}
 
 	return nil
@@ -448,5 +455,10 @@ func OpenBrowser(url string) error {
 		return fmt.Errorf("%w: %s", ErrUnsupportedPlatform, runtime.GOOS)
 	}
 
-	return cmd.Start()
+	err := cmd.Start()
+	if err != nil {
+		return fmt.Errorf("failed to open browser: %w", err)
+	}
+
+	return nil
 }

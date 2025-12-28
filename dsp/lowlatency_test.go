@@ -87,16 +87,16 @@ func TestNewLowLatencyConvolutionEngine(t *testing.T) {
 		t.Run(tableTest.name, func(t *testing.T) {
 			t.Parallel()
 
-			var ir []float32
+			var impulseResponse []float32
 			if tableTest.irLen > 0 {
-				ir = make([]float32, tableTest.irLen)
+				impulseResponse = make([]float32, tableTest.irLen)
 				// Simple exponential decay
-				for i := range ir {
-					ir[i] = float32(math.Exp(-float64(i) / 1000.0))
+				for i := range impulseResponse {
+					impulseResponse[i] = float32(math.Exp(-float64(i) / 1000.0))
 				}
 			}
 
-			engine, err := NewLowLatencyConvolutionEngine(ir, tableTest.minBlockOrder, tableTest.maxBlockOrder)
+			engine, err := NewLowLatencyConvolutionEngine(impulseResponse, tableTest.minBlockOrder, tableTest.maxBlockOrder)
 
 			if tableTest.wantErr {
 				if err == nil {
@@ -143,7 +143,7 @@ func TestPartitioning(t *testing.T) {
 	t.Logf("Number of stages: %d", engine.StageCount())
 
 	// Log stage details
-	for i := 0; i < engine.StageCount(); i++ {
+	for i := range engine.StageCount() {
 		fftSize, blockCount, err := engine.StageInfo(i)
 		if err != nil {
 			t.Errorf("StageInfo(%d) error: %v", i, err)
@@ -166,12 +166,12 @@ func TestImpulseResponse(t *testing.T) {
 	// Create a simple IR: [1, 0.5, 0.25, 0.125, ...]
 	irLen := 256
 
-	ir := make([]float32, irLen)
-	for i := range ir {
-		ir[i] = float32(math.Pow(0.5, float64(i)))
+	impulseResponse := make([]float32, irLen)
+	for i := range impulseResponse {
+		impulseResponse[i] = float32(math.Pow(0.5, float64(i)))
 	}
 
-	engine, err := NewLowLatencyConvolutionEngine(ir, 6, 8)
+	engine, err := NewLowLatencyConvolutionEngine(impulseResponse, 6, 8)
 	if err != nil {
 		t.Fatalf("failed to create engine: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestImpulseResponse(t *testing.T) {
 	matched := 0
 
 	for i := 0; i < irLen && i+latency < inputLen; i++ {
-		expected := ir[i]
+		expected := impulseResponse[i]
 
 		actual := output[i+latency]
 		if math.Abs(float64(actual-expected)) < float64(tolerance) {
@@ -227,7 +227,7 @@ func TestImpulseResponse(t *testing.T) {
 
 		for i := 0; i < 10 && i+latency < inputLen; i++ {
 			t.Logf("  output[%d] = %.6f, expected IR[%d] = %.6f",
-				i+latency, output[i+latency], i, ir[i])
+				i+latency, output[i+latency], i, impulseResponse[i])
 		}
 	}
 }
@@ -308,12 +308,12 @@ func TestProcessSample32(t *testing.T) {
 func TestReset(t *testing.T) {
 	t.Parallel()
 
-	ir := make([]float32, 512)
-	for i := range ir {
-		ir[i] = float32(math.Exp(-float64(i) / 100.0))
+	impulseResponse := make([]float32, 512)
+	for i := range impulseResponse {
+		impulseResponse[i] = float32(math.Exp(-float64(i) / 100.0))
 	}
 
-	engine, err := NewLowLatencyConvolutionEngine(ir, 6, 8)
+	engine, err := NewLowLatencyConvolutionEngine(impulseResponse, 6, 8)
 	if err != nil {
 		t.Fatalf("failed to create engine: %v", err)
 	}
@@ -335,7 +335,7 @@ func TestReset(t *testing.T) {
 	engine.Reset()
 
 	// Process impulse and compare with fresh engine
-	engine2, err := NewLowLatencyConvolutionEngine(ir, 6, 8)
+	engine2, err := NewLowLatencyConvolutionEngine(impulseResponse, 6, 8)
 	if err != nil {
 		t.Fatalf("failed to create second engine: %v", err)
 	}
@@ -443,13 +443,13 @@ func BenchmarkCompareEngines(b *testing.B) {
 	irLen := 256 // Must be <= blockSize for OverlapAddEngine
 	blockSize := 256
 
-	ir := make([]float32, irLen)
-	for i := range ir {
-		ir[i] = float32(math.Exp(-float64(i) / 50.0))
+	inputResponse := make([]float32, irLen)
+	for i := range inputResponse {
+		inputResponse[i] = float32(math.Exp(-float64(i) / 50.0))
 	}
 
 	b.Run("LowLatencyEngine_256", func(b *testing.B) {
-		engine, err := NewLowLatencyConvolutionEngine(ir, 8, 9)
+		engine, err := NewLowLatencyConvolutionEngine(inputResponse, 8, 9)
 		if err != nil {
 			b.Fatalf("failed to create engine: %v", err)
 		}
@@ -469,7 +469,7 @@ func BenchmarkCompareEngines(b *testing.B) {
 	})
 
 	b.Run("OverlapAddEngine_256", func(b *testing.B) {
-		engine := NewOverlapAddEngine(ir, blockSize)
+		engine := NewOverlapAddEngine(inputResponse, blockSize)
 
 		input := make([]float32, blockSize)
 		for i := range input {

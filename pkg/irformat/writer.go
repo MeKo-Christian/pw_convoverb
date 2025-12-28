@@ -2,6 +2,7 @@ package irformat
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
 
@@ -35,25 +36,25 @@ func (w *Writer) WriteHeader(irCount int) error {
 
 	// Write magic number
 	if _, err := w.w.Write([]byte(MagicNumber)); err != nil {
-		return err
+		return fmt.Errorf("failed to write magic number: %w", err)
 	}
 
 	// Write version
 	err := binary.Write(w.w, binary.LittleEndian, CurrentVersion)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to write version: %w", err)
 	}
 
 	// Write IR count
 	err = binary.Write(w.w, binary.LittleEndian, w.irCount)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to write IR count: %w", err)
 	}
 
 	// Write placeholder for index offset (will be updated in Close)
 	err = binary.Write(w.w, binary.LittleEndian, uint64(0))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to write index offset placeholder: %w", err)
 	}
 
 	w.currentPos = FileHeaderSize
@@ -79,25 +80,61 @@ func (w *Writer) WriteIR(impulseResponse *ImpulseResponse) error {
 
 	// Write IR chunk header
 	if _, err := w.w.Write([]byte(ChunkTypeIR)); err != nil {
-		return err
+		return fmt.Errorf("failed to write IR chunk header: %w", err)
 	}
 
 	err := binary.Write(w.w, binary.LittleEndian, chunkSize)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to write IR chunk size: %w", err)
 	}
 
 	// Write metadata sub-chunk
 	if _, err := w.w.Write(metaData); err != nil {
-		return err
+		return fmt.Errorf("failed to write metadata sub-chunk: %w", err)
 	}
 
 	// Write audio sub-chunk
 	if _, err := w.w.Write(audioData); err != nil {
-		return err
+		return fmt.Errorf("failed to write audio sub-chunk: %w", err)
 	}
 
 	w.currentPos += ChunkHeaderSize + chunkSize
+
+	return nil
+}
+
+// Close finalizes the file by writing the index chunk and updating the header.
+func (w *Writer) Close() error {
+	// Record index offset
+	indexOffset := w.currentPos
+
+	// Build and write index chunk
+	indexData := w.buildIndexChunk()
+
+	// Write index chunk header
+	if _, err := w.w.Write([]byte(ChunkTypeIndex)); err != nil {
+		return fmt.Errorf("failed to write index chunk header: %w", err)
+	}
+
+	err := binary.Write(w.w, binary.LittleEndian, uint64(len(indexData)))
+	if err != nil {
+		return fmt.Errorf("failed to write index chunk size: %w", err)
+	}
+
+	// Write index data
+	if _, err := w.w.Write(indexData); err != nil {
+		return fmt.Errorf("failed to write index data: %w", err)
+	}
+
+	// Seek back to header and update index offset
+	if _, err := w.w.Seek(10, io.SeekStart); err != nil { // offset of index_offset field
+		return fmt.Errorf("failed to seek to index offset field: %w", err)
+	}
+
+	err = binary.Write(w.w, binary.LittleEndian, indexOffset)
+	if err != nil {
+		return fmt.Errorf("failed to write index offset: %w", err)
+	}
 
 	return nil
 }
@@ -186,42 +223,6 @@ func (w *Writer) buildAudioSubChunk(audio *AudioData) []byte {
 	copy(buf[offset:], f16Data)
 
 	return buf
-}
-
-// Close finalizes the file by writing the index chunk and updating the header.
-func (w *Writer) Close() error {
-	// Record index offset
-	indexOffset := w.currentPos
-
-	// Build and write index chunk
-	indexData := w.buildIndexChunk()
-
-	// Write index chunk header
-	if _, err := w.w.Write([]byte(ChunkTypeIndex)); err != nil {
-		return err
-	}
-
-	err := binary.Write(w.w, binary.LittleEndian, uint64(len(indexData)))
-	if err != nil {
-		return err
-	}
-
-	// Write index data
-	if _, err := w.w.Write(indexData); err != nil {
-		return err
-	}
-
-	// Seek back to header and update index offset
-	if _, err := w.w.Seek(10, io.SeekStart); err != nil { // offset of index_offset field
-		return err
-	}
-
-	err = binary.Write(w.w, binary.LittleEndian, indexOffset)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // buildIndexChunk builds the binary index chunk data.

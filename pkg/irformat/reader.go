@@ -36,6 +36,58 @@ func NewReader(r io.ReadSeeker) (*Reader, error) {
 	return reader, nil
 }
 
+// Version returns the format version of the library.
+func (r *Reader) Version() uint16 {
+	return r.version
+}
+
+// IRCount returns the number of IRs in the library.
+func (r *Reader) IRCount() int {
+	return int(r.irCount)
+}
+
+// ListIRs returns the metadata for all IRs in the library.
+// This uses the index and does not load audio data.
+func (r *Reader) ListIRs() []IndexEntry {
+	result := make([]IndexEntry, len(r.index))
+	copy(result, r.index)
+
+	return result
+}
+
+// LoadIR loads a specific IR by index.
+func (r *Reader) LoadIR(index int) (*ImpulseResponse, error) {
+	if index < 0 || index >= len(r.index) {
+		return nil, ErrInvalidIndex
+	}
+
+	entry := r.index[index]
+
+	// Seek to IR chunk
+	if _, err := r.r.Seek(int64(entry.Offset), io.SeekStart); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrCorruptedData, err)
+	}
+
+	return r.readIRChunk()
+}
+
+// LoadIRByName loads an IR by name.
+// Returns ErrIRNotFound if no IR with the given name exists.
+func (r *Reader) LoadIRByName(name string) (*ImpulseResponse, error) {
+	for i, entry := range r.index {
+		if entry.Name == name {
+			return r.LoadIR(i)
+		}
+	}
+
+	return nil, ErrIRNotFound
+}
+
+// Close closes the reader. Currently a no-op but provided for interface consistency.
+func (r *Reader) Close() error {
+	return nil
+}
+
 // readHeader reads and validates the file header.
 func (r *Reader) readHeader() error {
 	// Read magic number
@@ -182,53 +234,6 @@ func (r *Reader) readString() (string, error) {
 	}
 
 	return string(data), nil
-}
-
-// Version returns the format version of the library.
-func (r *Reader) Version() uint16 {
-	return r.version
-}
-
-// IRCount returns the number of IRs in the library.
-func (r *Reader) IRCount() int {
-	return int(r.irCount)
-}
-
-// ListIRs returns the metadata for all IRs in the library.
-// This uses the index and does not load audio data.
-func (r *Reader) ListIRs() []IndexEntry {
-	result := make([]IndexEntry, len(r.index))
-	copy(result, r.index)
-
-	return result
-}
-
-// LoadIR loads a specific IR by index.
-func (r *Reader) LoadIR(index int) (*ImpulseResponse, error) {
-	if index < 0 || index >= len(r.index) {
-		return nil, ErrInvalidIndex
-	}
-
-	entry := r.index[index]
-
-	// Seek to IR chunk
-	if _, err := r.r.Seek(int64(entry.Offset), io.SeekStart); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrCorruptedData, err)
-	}
-
-	return r.readIRChunk()
-}
-
-// LoadIRByName loads an IR by name.
-// Returns ErrIRNotFound if no IR with the given name exists.
-func (r *Reader) LoadIRByName(name string) (*ImpulseResponse, error) {
-	for i, entry := range r.index {
-		if entry.Name == name {
-			return r.LoadIR(i)
-		}
-	}
-
-	return nil, ErrIRNotFound
 }
 
 // readIRChunk reads a complete IR chunk including metadata and audio.
@@ -379,11 +384,6 @@ func (r *Reader) readAudioSubChunk(audio *AudioData, channels, length int) error
 	// Decode f16 to float32
 	audio.Data = f16.F16ToFloat32Deinterleaved(f16Data, channels)
 
-	return nil
-}
-
-// Close closes the reader. Currently a no-op but provided for interface consistency.
-func (r *Reader) Close() error {
 	return nil
 }
 

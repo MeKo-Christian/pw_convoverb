@@ -68,7 +68,7 @@ func TestResample_Downsample2x(t *testing.T) {
 func TestResample_Upsample2x(t *testing.T) {
 	t.Parallel()
 
-	r := New()
+	resampler := New()
 	inputLen := 512
 
 	input := make([]float32, inputLen)
@@ -76,7 +76,7 @@ func TestResample_Upsample2x(t *testing.T) {
 		input[i] = float32(math.Sin(2 * math.Pi * float64(i) / float64(inputLen)))
 	}
 
-	result, err := r.Resample(input, 44100, 88200)
+	result, err := resampler.Resample(input, 44100, 88200)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestResample_ArbitraryRatio_88200_to_48000(t *testing.T) {
 func TestResample_PreservesLowFrequencyContent(t *testing.T) {
 	t.Parallel()
 
-	r := New()
+	resampler := New()
 
 	// Generate a low-frequency sine wave (well below Nyquist for both rates)
 	srcRate := 88200.0
@@ -129,7 +129,7 @@ func TestResample_PreservesLowFrequencyContent(t *testing.T) {
 		input[i] = float32(math.Sin(2 * math.Pi * frequency * t))
 	}
 
-	result, err := r.Resample(input, srcRate, dstRate)
+	result, err := resampler.Resample(input, srcRate, dstRate)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -241,7 +241,7 @@ func draw(state *TUIState) {
 		printTB(0, 5+i, col, bgColor, line)
 
 		// Add hint for IR parameter
-		if i == 0 && i == state.selectedParam {
+		if i == 0 && state.selectedParam == 0 {
 			printTB(len(line)+2, 5+i, colYellow, colDef, "[Enter to browse]")
 		}
 	}

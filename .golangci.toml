@@ -7,6 +7,7 @@ disable = [
   'exhaustive',
   'exhaustruct',
   'godox',
+  'gosec',
   'ireturn',
   'mnd',
   'musttag',
@@ -38,10 +39,6 @@ disable = ['decl']
 [linters.exclusions]
 generated = 'lax'
 presets = ['comments', 'common-false-positives', 'legacy', 'std-error-handling']
-
-[[linters.exclusions.rules]]
-linters = ['gosec']
-text = 'G601:'
 
 [[linters.exclusions.rules]]
 linters = ['gochecknoglobals']

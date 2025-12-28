@@ -113,19 +113,6 @@ func (e *LowLatencyConvolutionEngine) IRSize() int {
 	return e.irSize
 }
 
-// calculatePaddedIRSize computes the padded IR size to align with partition boundaries.
-func (e *LowLatencyConvolutionEngine) calculatePaddedIRSize() int {
-	if e.irSize == 0 {
-		return 0
-	}
-
-	minBlockSize := 1 << e.minBlockOrder
-	// Round up to multiple of minimum block size
-	padded := ((e.irSize + minBlockSize - 1) / minBlockSize) * minBlockSize
-
-	return padded
-}
-
 // bitCountToBits returns (2^(bitCount+1)) - 1
 // For bitCount=6: returns 127 (2^7 - 1).
 func bitCountToBits(bitCount int) int {
@@ -146,106 +133,6 @@ func truncLog2(n int) int {
 	}
 
 	return result
-}
-
-// partitionIR divides the IR into stages with increasing FFT sizes.
-// This is the core algorithm from the Pascal reference (lines 1397-1445).
-//
-// The algorithm:
-// 1. Calculate the maximum FFT order needed based on IR size
-// 2. Allocate at least one block per FFT size from minBlockOrder to maxIROrder
-// 3. Distribute remaining IR across stages using bit manipulation
-// 4. Create stages with logarithmically increasing sizes.
-func (e *LowLatencyConvolutionEngine) partitionIR() error {
-	// Clear existing stages
-	e.stages = nil
-
-	if e.irSizePadded == 0 {
-		return nil
-	}
-
-	minBlockSize := 1 << e.minBlockOrder
-
-	// Calculate maximum FFT order needed for this IR
-	maxIROrd := truncLog2(e.irSizePadded+minBlockSize) - 1
-
-	// At least one block of each FFT size is necessary
-	// ResIRSize = irSizePadded - sum of one block per size
-	resIRSize := e.irSizePadded - (bitCountToBits(maxIROrd) - bitCountToBits(e.minBlockOrder-1))
-
-	// Check if highest order block is only used once; if not, decrease
-	if ((resIRSize&(1<<maxIROrd))>>maxIROrd) == 0 && maxIROrd > e.minBlockOrder {
-		maxIROrd--
-	}
-
-	// Clip to maximum allowed order
-	if maxIROrd > e.maxBlockOrder {
-		maxIROrd = e.maxBlockOrder
-	}
-
-	// Recalculate residual since maxIROrd could have changed
-	resIRSize = e.irSizePadded - (bitCountToBits(maxIROrd) - bitCountToBits(e.minBlockOrder-1))
-
-	// Initialize stage array
-	numStages := maxIROrd - e.minBlockOrder + 1
-	e.stages = make([]*ConvolutionStage, numStages)
-
-	// Create stages from minBlockOrder to maxIROrd-1
-	startPos := 0
-
-	for order := e.minBlockOrder; order < maxIROrd; order++ {
-		// Count blocks at this order: 1 mandatory + any from residual
-		count := 1 + ((resIRSize & (1 << order)) >> order)
-
-		stage, err := NewConvolutionStage(order, startPos, e.latency, count)
-		if err != nil {
-			return fmt.Errorf("failed to create stage for order %d: %w", order, err)
-		}
-
-		e.stages[order-e.minBlockOrder] = stage
-
-		startPos += count * (1 << order)
-		resIRSize -= (count - 1) * (1 << order)
-	}
-
-	// Last stage (highest order)
-	count := 1 + (resIRSize / (1 << maxIROrd))
-
-	stage, err := NewConvolutionStage(maxIROrd, startPos, e.latency, count)
-	if err != nil {
-		return fmt.Errorf("failed to create final stage for order %d: %w", maxIROrd, err)
-	}
-
-	e.stages[len(e.stages)-1] = stage
-
-	// Update input buffer size to accommodate largest FFT
-	e.inputBufferSize = 2 << maxIROrd
-	e.inputHistorySize = e.inputBufferSize - e.latency
-
-	// Allocate input buffer
-	e.inputBuffer = make([]float32, e.inputBufferSize)
-
-	// Allocate output buffer
-	e.outputHistorySize = e.irSizePadded - e.latency
-	e.outputBuffer = make([]float32, e.irSizePadded)
-
-	return nil
-}
-
-// buildIRSpectrums triggers FFT computation for all stages.
-func (e *LowLatencyConvolutionEngine) buildIRSpectrums() error {
-	// Pad IR to irSizePadded if needed
-	paddedIR := make([]float32, e.irSizePadded)
-	copy(paddedIR, e.impulseResponse)
-
-	for i, stage := range e.stages {
-		err := stage.CalculateIRSpectrums(paddedIR)
-		if err != nil {
-			return fmt.Errorf("failed to calculate IR spectrums for stage %d: %w", i, err)
-		}
-	}
-
-	return nil
 }
 
 // ProcessBlockInplace implements ConvolutionEngine interface.
@@ -397,4 +284,117 @@ func (e *LowLatencyConvolutionEngine) StageInfo(index int) (fftSize, blockCount 
 	stage := e.stages[index]
 
 	return stage.FFTSize(), stage.Count(), nil
+}
+
+// calculatePaddedIRSize computes the padded IR size to align with partition boundaries.
+func (e *LowLatencyConvolutionEngine) calculatePaddedIRSize() int {
+	if e.irSize == 0 {
+		return 0
+	}
+
+	minBlockSize := 1 << e.minBlockOrder
+	// Round up to multiple of minimum block size
+	padded := ((e.irSize + minBlockSize - 1) / minBlockSize) * minBlockSize
+
+	return padded
+}
+
+// partitionIR divides the IR into stages with increasing FFT sizes.
+// This is the core algorithm from the Pascal reference (lines 1397-1445).
+//
+// The algorithm:
+// 1. Calculate the maximum FFT order needed based on IR size
+// 2. Allocate at least one block per FFT size from minBlockOrder to maxIROrder
+// 3. Distribute remaining IR across stages using bit manipulation
+// 4. Create stages with logarithmically increasing sizes.
+func (e *LowLatencyConvolutionEngine) partitionIR() error {
+	// Clear existing stages
+	e.stages = nil
+
+	if e.irSizePadded == 0 {
+		return nil
+	}
+
+	minBlockSize := 1 << e.minBlockOrder
+
+	// Calculate maximum FFT order needed for this IR
+	maxIROrd := truncLog2(e.irSizePadded+minBlockSize) - 1
+
+	// At least one block of each FFT size is necessary
+	// ResIRSize = irSizePadded - sum of one block per size
+	resIRSize := e.irSizePadded - (bitCountToBits(maxIROrd) - bitCountToBits(e.minBlockOrder-1))
+
+	// Check if highest order block is only used once; if not, decrease
+	if ((resIRSize&(1<<maxIROrd))>>maxIROrd) == 0 && maxIROrd > e.minBlockOrder {
+		maxIROrd--
+	}
+
+	// Clip to maximum allowed order
+	if maxIROrd > e.maxBlockOrder {
+		maxIROrd = e.maxBlockOrder
+	}
+
+	// Recalculate residual since maxIROrd could have changed
+	resIRSize = e.irSizePadded - (bitCountToBits(maxIROrd) - bitCountToBits(e.minBlockOrder-1))
+
+	// Initialize stage array
+	numStages := maxIROrd - e.minBlockOrder + 1
+	e.stages = make([]*ConvolutionStage, numStages)
+
+	// Create stages from minBlockOrder to maxIROrd-1
+	startPos := 0
+
+	for order := e.minBlockOrder; order < maxIROrd; order++ {
+		// Count blocks at this order: 1 mandatory + any from residual
+		count := 1 + ((resIRSize & (1 << order)) >> order)
+
+		stage, err := NewConvolutionStage(order, startPos, e.latency, count)
+		if err != nil {
+			return fmt.Errorf("failed to create stage for order %d: %w", order, err)
+		}
+
+		e.stages[order-e.minBlockOrder] = stage
+
+		startPos += count * (1 << order)
+		resIRSize -= (count - 1) * (1 << order)
+	}
+
+	// Last stage (highest order)
+	count := 1 + (resIRSize / (1 << maxIROrd))
+
+	stage, err := NewConvolutionStage(maxIROrd, startPos, e.latency, count)
+	if err != nil {
+		return fmt.Errorf("failed to create final stage for order %d: %w", maxIROrd, err)
+	}
+
+	e.stages[len(e.stages)-1] = stage
+
+	// Update input buffer size to accommodate largest FFT
+	e.inputBufferSize = 2 << maxIROrd
+	e.inputHistorySize = e.inputBufferSize - e.latency
+
+	// Allocate input buffer
+	e.inputBuffer = make([]float32, e.inputBufferSize)
+
+	// Allocate output buffer
+	e.outputHistorySize = e.irSizePadded - e.latency
+	e.outputBuffer = make([]float32, e.irSizePadded)
+
+	return nil
+}
+
+// buildIRSpectrums triggers FFT computation for all stages.
+func (e *LowLatencyConvolutionEngine) buildIRSpectrums() error {
+	// Pad IR to irSizePadded if needed
+	paddedIR := make([]float32, e.irSizePadded)
+	copy(paddedIR, e.impulseResponse)
+
+	for i, stage := range e.stages {
+		err := stage.CalculateIRSpectrums(paddedIR)
+		if err != nil {
+			return fmt.Errorf("failed to calculate IR spectrums for stage %d: %w", i, err)
+		}
+	}
+
+	return nil
 }
