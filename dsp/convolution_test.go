@@ -5,9 +5,8 @@ import (
 	"math"
 	"testing"
 
-	"pw-convoverb/pkg/irformat"
-
 	algofft "github.com/MeKo-Christian/algo-fft"
+	"pw-convoverb/pkg/irformat"
 )
 
 // memFile is an in-memory file that supports io.ReadWriteSeeker for testing.
