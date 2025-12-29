@@ -22,7 +22,6 @@ import "C"
 import (
 	"bytes"
 	"context"
-	_ "embed"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -33,6 +32,8 @@ import (
 
 	"pw-convoverb/dsp"
 	"pw-convoverb/web"
+
+	_ "embed"
 )
 
 //go:embed assets/ir-library.irlib

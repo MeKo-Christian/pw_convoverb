@@ -37,9 +37,20 @@ includes = ["*.go"]
 
 [formatter.gci]
 command = "gci"
-options = ["-w"]
+options = [
+  "write",
+  "--skip-generated",
+  "-s",
+  "standard",
+  "-s",
+  "default",
+  "-s",
+  "prefix(github.com/MeKo-Christian/algo-fft)",
+  "-s",
+  "blank",
+]
 includes = ["*.go"]
-priority = 1 # run after gofumpt
+priority = 1 # run after gofumpt to ensure import ordering is final
 
 ### C
 

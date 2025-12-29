@@ -63,7 +63,16 @@ linters = ['exhaustive', 'exhaustruct', 'godox']
 severity = 'info'
 
 [formatters]
-enable = ['gci', 'gofumpt', 'goimports']
+# Note: goimports disabled because gci (in treefmt.toml) handles all import formatting
+# This prevents conflicts between gofumpt and gci
+enable = ['gofumpt']
 
 [formatters.exclusions]
 generated = 'lax'
+
+[formatters.settings.gci]
+sections = [
+  'standard',
+  'default',
+  'prefix(github.com/MeKo-Christian/algo-fft)',
+]

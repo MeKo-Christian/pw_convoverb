@@ -12,9 +12,10 @@ import (
 	"strings"
 	"sync"
 
-	algofft "github.com/MeKo-Christian/algo-fft"
 	"pw-convoverb/pkg/irformat"
 	"pw-convoverb/pkg/resampler"
+
+	algofft "github.com/MeKo-Christian/algo-fft"
 )
 
 // IRIndexEntry is an alias for irformat.IndexEntry for external use.
