@@ -66,9 +66,30 @@ build-lib:
         -I/usr/include/spa-0.2 \
         -lpipewire-0.3
 
-# Build the Go binary
+# Build the Go binary with SIMD optimizations
 build: build-lib
-    go build -o pw-convoverb
+    #!/bin/bash
+    # Enable SIMD optimizations based on architecture
+    TAGS=""
+    ARCH=$(uname -m)
+
+    if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]]; then
+        # Enable AVX2 for x86_64/amd64
+        TAGS="fft_asm"
+        echo "Building with AVX2 optimizations for x86_64..."
+    elif [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]]; then
+        # Enable NEON for ARM64 (if supported by algo-fft)
+        TAGS="fft_asm"
+        echo "Building with NEON optimizations for ARM64..."
+    else
+        echo "Building without SIMD optimizations (unsupported architecture: $ARCH)..."
+    fi
+
+    if [[ -n "$TAGS" ]]; then
+        go build -tags "$TAGS" -o pw-convoverb
+    else
+        go build -o pw-convoverb
+    fi
 
 # Clean build artifacts
 clean:
@@ -81,33 +102,70 @@ run: build
 # Full rebuild (clean + build)
 rebuild: clean build
 
-# Run all tests (unit + integration)
+# Run all tests (unit + integration) with SIMD optimizations
 test:
-    go test -v
+    #!/bin/bash
+    ARCH=$(uname -m)
+    if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]] || [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]]; then
+        go test -tags fft_asm -v
+    else
+        go test -v
+    fi
 
 # Run unit tests only
 test-unit:
-    go test -v -run Test[^I]
+    #!/bin/bash
+    ARCH=$(uname -m)
+    if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]] || [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]]; then
+        go test -tags fft_asm -v -run Test[^I]
+    else
+        go test -v -run Test[^I]
+    fi
 
 # Run integration tests only
 test-integration:
-    go test -v -run TestIntegration
+    #!/bin/bash
+    ARCH=$(uname -m)
+    if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]] || [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]]; then
+        go test -tags fft_asm -v -run TestIntegration
+    else
+        go test -v -run TestIntegration
+    fi
 
 # Run tests with coverage
 test-coverage:
-    go test -cover -coverprofile=coverage.out
+    #!/bin/bash
+    ARCH=$(uname -m)
+    if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]] || [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]]; then
+        go test -tags fft_asm -cover -coverprofile=coverage.out
+    else
+        go test -cover -coverprofile=coverage.out
+    fi
     go tool cover -html=coverage.out -o coverage.html
     @echo "Coverage report: coverage.html"
 
 # Run integration tests with coverage
 test-integration-coverage:
-    go test -v -run TestIntegration -cover -coverprofile=integration_coverage.out
+    #!/bin/bash
+    ARCH=$(uname -m)
+    if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]] || [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]]; then
+        go test -tags fft_asm -v -run TestIntegration -cover -coverprofile=integration_coverage.out
+    else
+        go test -v -run TestIntegration -cover -coverprofile=integration_coverage.out
+    fi
     go tool cover -html=integration_coverage.out -o integration_coverage.html
     @echo "Integration coverage report: integration_coverage.html"
 
-# Run benchmarks
+# Run benchmarks with SIMD optimizations
 bench:
-    go test -bench=. -benchmem
+    #!/bin/bash
+    ARCH=$(uname -m)
+    if [[ "$ARCH" == "x86_64" ]] || [[ "$ARCH" == "amd64" ]] || [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]]; then
+        echo "Running benchmarks with SIMD optimizations..."
+        go test -tags fft_asm -bench=. -benchmem
+    else
+        go test -bench=. -benchmem
+    fi
 
 # Show build info
 info:

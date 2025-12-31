@@ -3,7 +3,7 @@ module pw-convoverb
 go 1.25.0
 
 require (
-	github.com/MeKo-Christian/algo-fft v0.2.0
+	github.com/MeKo-Christian/algo-fft v0.3.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/nsf/termbox-go v1.1.1
 )
